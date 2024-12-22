@@ -1,5 +1,5 @@
 export interface Game {
-    id?: number;
+    id?: number | string;
     pgn?: string;
     white?: User;
     black?: User;

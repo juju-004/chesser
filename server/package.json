@@ -18,9 +18,10 @@
         "express": "^4.19.2",
         "express-session": "^1.18.0",
         "nanoid": "^5.0.7",
-        "pg": "^8.12.0",
         "socket.io": "^4.7.5",
-        "xss": "^1.0.15"
+        "xss": "^1.0.15",
+        "mongoose": "^8.5.1",
+        "connect-mongo": "^4.6.0"
     },
     "devDependencies": {
         "@chessu/types": "workspace:*",

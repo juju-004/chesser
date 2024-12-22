@@ -3,7 +3,7 @@ import type { User } from "@chessu/types";
 
 export const fetchSession = async () => {
     try {
-        const res = await fetch(`${API_URL}/v1/auth`, {
+        const res = await fetch(`${API_URL}/v1/auth/getuser`, {
             credentials: "include"
         });
 
@@ -13,25 +13,6 @@ export const fetchSession = async () => {
         }
     } catch (err) {
         // do nothing
-    }
-};
-
-export const setGuestSession = async (name: string) => {
-    try {
-        const res = await fetch(`${API_URL}/v1/auth/guest`, {
-            method: "POST",
-            credentials: "include",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ name })
-        });
-        if (res.status === 201) {
-            const user: User = await res.json();
-            return user;
-        }
-    } catch (err) {
-        console.error(err);
     }
 };
 

@@ -6,8 +6,8 @@ const router = Router();
 
 router.route("/").get(controller.getCurrentSession).patch(controller.updateUser);
 
+router.route("/getuser").get(controller.getCurrentSession);
 // create or update guest sessions
-router.route("/guest").post(controller.guestSession);
 
 router.route("/logout").post(controller.logoutSession);
 
