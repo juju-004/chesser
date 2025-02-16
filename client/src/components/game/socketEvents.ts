@@ -19,6 +19,7 @@ export function initSocket(
     }
 ) {
     socket.on("connect", () => {
+        console.log(lobby.code, "yes");
         socket.emit("joinLobby", lobby.code);
     });
     // TODO: handle disconnect

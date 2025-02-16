@@ -143,3 +143,12 @@ export const remove = async (id: string) => {
         return null;
     }
 };
+
+const GameService = {
+    findByUserId,
+    findById,
+    save,
+    remove
+};
+
+export default GameService;

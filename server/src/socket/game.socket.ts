@@ -2,8 +2,7 @@ import type { Game } from "@chessu/types";
 import { Chess } from "chess.js";
 import type { DisconnectReason, Socket } from "socket.io";
 
-import { activeGames } from "../db/services/game.js";
-// import { GameModel } from "../db/index.js";
+import GameService, { activeGames } from "../db/services/game.js";
 import { io } from "../server.js";
 
 // TODO: clean up
@@ -139,9 +138,8 @@ export async function claimAbandoned(this: Socket, type: "win" | "draw") {
         game.winner = "black";
     }
 
-    // const { id } = (await GameModel.save(game));
-    // game.id = id;
-    const id = 358585;
+    const { id } = await GameService.save(game);
+    game.id = id;
 
     const gameOver = {
         reason: game.endReason,
@@ -208,9 +206,8 @@ export async function sendMove(this: Socket, m: { from: string; to: string; prom
                 }
                 game.endReason = reason;
 
-                // const { id } = (await GameModel.save(game)) as Game; // save game to db
-                // game.id = id;
-                const id = 358585;
+                const { id } = await GameService.save(game); // save game to db
+                game.id = id;
 
                 io.to(game.code as string).emit("gameOver", { reason, winnerName, winnerSide, id });
 
