@@ -14,15 +14,20 @@ export const connectDatabase = async () => {
 };
 
 // Define schemas for "user" and "game" collections
-const userSchema = new mongoose.Schema({
-    name: { type: String, required: true, unique: true },
-    email: { type: String },
-    password: { type: String },
-    wins: { type: Number, default: 0 },
-    losses: { type: Number, default: 0 },
-    draws: { type: Number, default: 0 },
-    createdAt: { type: Date, default: Date.now }
-});
+const userSchema = new mongoose.Schema(
+    {
+        name: { type: String, required: true, unique: true },
+        email: { type: String },
+        password: { type: String },
+        wins: { type: Number, default: 0 },
+        losses: { type: Number, default: 0 },
+        draws: { type: Number, default: 0 },
+        verified: { type: Boolean, default: false },
+        token: { type: String },
+        forgotPassPassword: { type: String }
+    },
+    { timestamps: true }
+);
 
 const gameSchema = new mongoose.Schema({
     id: { type: Number },

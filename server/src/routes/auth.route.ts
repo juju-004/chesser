@@ -9,8 +9,14 @@ router.route("/").get(controller.getCurrentSession).patch(controller.updateUser)
 router.route("/getuser").get(controller.getCurrentSession);
 // create or update guest sessions
 
-router.route("/logout").post(controller.logoutSession);
+router.route("/verifymail").post(controller.emailVerification);
+router.route("/resendmail").post(controller.resendMail);
 
+// forgot password
+router.route("/forgotpassmailsend").post(controller.forgotPassEmailSend);
+router.route("/forgotpassmailverify").post(controller.forgotPassEmailVerification);
+
+router.route("/logout").post(controller.logoutSession);
 router.route("/register").post(controller.registerUser);
 router.route("/login").post(controller.loginUser);
 

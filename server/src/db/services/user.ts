@@ -1,7 +1,7 @@
 import type { User } from "@chessu/types";
 import { UserModel } from "../index.js";
 
-export const create = async (user: User, password: string) => {
+export const create = async (user: User, token: string, password: string) => {
     if (user.name === "Guest" || user.email === undefined) {
         return null;
     }
@@ -10,6 +10,7 @@ export const create = async (user: User, password: string) => {
         const newUser = new UserModel({
             name: user.name,
             email: user.email,
+            token,
             password
         });
         await newUser.save();
@@ -65,6 +66,11 @@ export const findByNameEmail = async (user: Partial<User>, includePassword = fal
             wins: u.wins,
             losses: u.losses,
             draws: u.draws,
+            verified: u.verified,
+            token: u.token,
+            updatedAt: u.updatedAt,
+            forgotPassPassword: u.forgotPassPassword,
+
             ...(includePassword ? { password: u.password } : {})
         }));
     } catch (err: unknown) {

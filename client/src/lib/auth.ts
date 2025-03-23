@@ -1,98 +1,61 @@
 import { API_URL } from "@/config";
 import type { User } from "@chessu/types";
+import axios from "axios";
+import { clientErrorHandler } from "./handlers";
 
-export const fetchSession = async () => {
-    try {
-        const res = await fetch(`${API_URL}/v1/auth/getuser`, {
-            credentials: "include"
+export const fetchSession = () =>
+    clientErrorHandler(async () => {
+        const { data } = await axios.get(`${API_URL}/v1/auth/getuser`);
+        return data;
+    });
+
+export const login = (name: string, password: string) =>
+    clientErrorHandler(async () => {
+        const { data } = await axios.post(`${API_URL}/v1/auth/login`, { name, password });
+        return data;
+    });
+
+export const register = (name: string, password: string, email: string) =>
+    clientErrorHandler(async () => {
+        const { data } = await axios.post(`${API_URL}/v1/auth/register`, { name, password, email });
+        return data;
+    });
+
+export const updateUser = (name?: string, email?: string, password?: string) =>
+    clientErrorHandler(async () => {
+        const { data } = await axios.patch(`${API_URL}/v1/auth/`, { name, email, password });
+        return data;
+    });
+
+export const logout = () =>
+    clientErrorHandler(async () => {
+        const { data } = await axios.post(`${API_URL}/v1/auth/logout`);
+        return data;
+    });
+
+export const resendMail = (email: string) =>
+    clientErrorHandler(async () => {
+        const { data } = await axios.post(`${API_URL}/v1/auth/resendmail`, { email });
+        return data;
+    });
+
+export const verifyMail = (token: string) =>
+    clientErrorHandler(async () => {
+        const { data } = await axios.post(`${API_URL}/v1/auth/verifymail`, { token });
+        return data;
+    });
+
+export const sendForgotPassMail = (email: string, password: string) =>
+    clientErrorHandler(async () => {
+        const { data } = await axios.post(`${API_URL}/v1/auth/forgotpassmailsend`, {
+            email,
+            password
         });
+        return data;
+    });
 
-        if (res && res.status === 200) {
-            const user: User = await res.json();
-            return user;
-        }
-    } catch (err) {
-        // do nothing
-    }
-};
-
-export const register = async (name: string, password: string, email?: string) => {
-    try {
-        const res = await fetch(`${API_URL}/v1/auth/register`, {
-            method: "POST",
-            credentials: "include",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ name, password, email })
-        });
-        if (res.status === 201) {
-            const user: User = await res.json();
-            return user;
-        } else if (res.status === 409) {
-            const { message } = await res.json();
-            return message as string;
-        }
-    } catch (err) {
-        console.error(err);
-    }
-};
-
-export const login = async (name: string, password: string) => {
-    try {
-        const res = await fetch(`${API_URL}/v1/auth/login`, {
-            method: "POST",
-            credentials: "include",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ name, password })
-        });
-        if (res.status === 200) {
-            const user: User = await res.json();
-            return user;
-        } else if (res.status === 404 || res.status === 401) {
-            const { message } = await res.json();
-            return message as string;
-        }
-    } catch (err) {
-        console.error(err);
-    }
-};
-
-export const logout = async () => {
-    try {
-        const res = await fetch(`${API_URL}/v1/auth/logout`, {
-            method: "POST",
-            credentials: "include"
-        });
-        if (res.status === 204) {
-            return true;
-        }
-    } catch (err) {
-        console.error(err);
-    }
-};
-
-export const updateUser = async (name?: string, email?: string, password?: string) => {
-    try {
-        if (!name && !email && !password) return;
-        const res = await fetch(`${API_URL}/v1/auth/`, {
-            method: "PATCH",
-            credentials: "include",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ name, email, password })
-        });
-        if (res.status === 200) {
-            const user: User = await res.json();
-            return user;
-        } else if (res.status === 409) {
-            const { message } = await res.json();
-            return message as string;
-        }
-    } catch (err) {
-        console.error(err);
-    }
-};
+export const verifyForgotPassMail = (token: string) =>
+    clientErrorHandler(async () => {
+        const { data } = await axios.post(`${API_URL}/v1/auth/forgotpassmailverify`, { token });
+        return data;
+    });

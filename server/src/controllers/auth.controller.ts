@@ -4,7 +4,9 @@ import { hash, verify } from "argon2";
 import type { Request, Response } from "express";
 import xss from "xss";
 import UserService from "../db/services/user.js";
-import { asyncHandler } from "../db/helper.js";
+import { asyncHandler, generateRandomSequence, isDateGreaterOrLessThanADay } from "../db/helper.js";
+import { sendEmail } from "./sendMail.js";
+import { UserModel } from "../db/index.js";
 
 export const getCurrentSession = asyncHandler(async (req: Request, res: Response) => {
     if (req.session.user) {
@@ -35,16 +37,30 @@ export const registerUser = asyncHandler(async (req: Request, res: Response) => 
     if (!pattern.test(name)) throw new Error("Invalid Username Characters");
 
     const duplicateUsers = await UserService.findByNameEmail({ name, email });
+
+    if (duplicateUsers.length && duplicateUsers[0]?.verified === false) {
+        await UserService.remove(duplicateUsers[0].id);
+    }
+
     if (duplicateUsers && duplicateUsers.length) {
         const dupl = duplicateUsers[0].name === name ? "Username" : "Email";
         throw new Error(`${dupl} is already in use.`);
     }
 
-    const newUser = await UserService.create({ name, email }, password);
+    const token = generateRandomSequence();
+
+    const mail = await sendEmail(email, `${token}-${name}`, false);
+
+    // console.log(`${token}-${name}`);
+
+    if (!mail.success) throw new Error("Failed to send mail");
+    const newUser = await UserService.create({ name, email }, token, password);
 
     if (!newUser) {
         throw new Error("Failed to create user");
     }
+
+    res.status(200).json({ email: newUser.email });
 
     // const publicUser = {
     //     id: newUser.id,
@@ -75,11 +91,56 @@ export const registerUser = asyncHandler(async (req: Request, res: Response) => 
     //         io.to(game.code as string).emit("receivedLatestGame", game);
     //     }
     // }
+});
 
-    req.session.user = newUser;
-    req.session.save(() => {
-        res.status(201).json(req.session.user);
+export const resendMail = asyncHandler(async (req: Request, res: Response) => {
+    if (req.session.user?.id) {
+        res.status(403).end();
+        return;
+    }
+
+    const email = req.body.email;
+
+    const user = await UserService.findByNameEmail({ name: "", email });
+
+    if (!user.length || user[0]?.verified) throw new Error("Invalid Email");
+
+    const token = generateRandomSequence();
+
+    await sendEmail(email, `${token}-${user[0]?.name}`, false);
+
+    // console.log(`${token}-${user[0]?.name}`);
+
+    await UserModel.findByIdAndUpdate(user[0].id, {
+        $set: {
+            token
+        }
     });
+
+    res.status(200).json({ message: "Mail sent successfully" });
+});
+
+export const emailVerification = asyncHandler(async (req: Request, res: Response) => {
+    if (req.session.user?.id) {
+        res.status(403).end();
+        return;
+    }
+
+    const [token, name] = req.body.token.split("-");
+
+    const user = await UserService.findByNameEmail({ name, email: "" });
+
+    if (!user.length || user[0]?.verified || user[0].token !== token)
+        throw new Error("Invalid Token or Expired token");
+
+    await UserModel.findByIdAndUpdate(user[0].id, {
+        $set: {
+            verified: true,
+            token: ""
+        }
+    });
+
+    res.status(200).json({ message: "Email verified successfully" });
 });
 
 export const loginUser = asyncHandler(async (req: Request, res: Response) => {
@@ -95,13 +156,20 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
         { name: nameOrEmail, email: nameOrEmail },
         true
     );
+
+    console.log(users);
+
     if (!users || !users.length) {
-        throw new Error("Invalid username/email.");
+        throw new Error("Invalid email or password.");
     }
+
+    // if (!users[0].verified) {
+    //     res.status(200).json({ message: "User not verified" });
+    // }
 
     const validPassword = await verify(users[0].password as string, password);
     if (!validPassword) {
-        throw new Error("Invalid password.");
+        throw new Error("Invalid  or password.");
     }
 
     // const publicUser = {
@@ -241,3 +309,66 @@ export const updateUser = async (req: Request, res: Response) => {
     //     res.status(500).end();
     // }
 };
+
+export const forgotPassEmailSend = asyncHandler(async (req: Request, res: Response) => {
+    if (req.session.user?.id) {
+        res.status(403).end();
+        return;
+    }
+
+    const email = req.body.email;
+    const password = await hash(req.body.password);
+
+    const user = await UserService.findByNameEmail({ name: "", email });
+
+    if (!user.length || !user[0]?.verified || user[0]?.forgotPassPassword.length)
+        throw new Error("Invalid Email");
+
+    if (!isDateGreaterOrLessThanADay(user[0].updatedAt)) {
+        throw new Error("Please try again after 24 hours");
+    }
+
+    const token = generateRandomSequence();
+
+    await sendEmail(email, `${token}-${user[0]?.name}`, true);
+
+    // console.log(`${token}-${user[0]?.name}`);
+
+    await UserModel.findByIdAndUpdate(user[0].id, {
+        $set: {
+            token,
+            forgotPassPassword: password
+        }
+    });
+
+    res.status(200).json({ email: user[0].email });
+});
+
+export const forgotPassEmailVerification = asyncHandler(async (req: Request, res: Response) => {
+    if (req.session.user?.id) {
+        res.status(403).end();
+        return;
+    }
+
+    const [token, name] = req.body.token.split("-");
+
+    const user = await UserService.findByNameEmail({ name, email: "" });
+
+    if (
+        !user.length ||
+        !user[0]?.verified ||
+        user[0].token !== token ||
+        !user[0]?.forgotPassPassword.length
+    )
+        throw new Error("Invalid Token or Expired token");
+
+    await UserModel.findByIdAndUpdate(user[0].id, {
+        $set: {
+            forgotPassPassword: "",
+            token: "",
+            password: user[0]?.forgotPassPassword
+        }
+    });
+
+    res.status(200).json({ message: "Email verified successfully" });
+});

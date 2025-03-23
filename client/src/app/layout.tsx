@@ -1,21 +1,17 @@
 import "@/styles/globals.css";
 
 import type { ReactNode } from "react";
-
-import Footer from "@/components/Footer";
-import Header from "@/components/Header";
-import AuthModal from "@/components/auth/AuthModal";
-
 import ContextProvider from "@/context/ContextProvider";
+import ToastProvider from "@/context/ToastContext";
 
 export const metadata = {
-  title: "chessu",
+  title: "chesser",
   description: "Play Chess online.",
   openGraph: {
-    title: "chessu",
+    title: "chesser",
     description: "Play Chess online.",
     url: "https://ches.su",
-    siteName: "chessu",
+    siteName: "chesser",
     locale: "en_US",
     type: "website"
   },
@@ -41,18 +37,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className="overflow-x-hidden">
       <body className="overflow-x-hidden">
         <ContextProvider>
-          <Header />
-
-          <main className="mx-1 flex min-h-[70vh] justify-center md:mx-16 lg:mx-40">
-            {children}
+          <main className="mx-1 flex justify-center md:mx-16 lg:mx-40">
+            <ToastProvider>{children}</ToastProvider>
           </main>
-
-          <AuthModal />
         </ContextProvider>
-
-        <Footer />
-
-        {/* next/script issue: https://github.com/vercel/next.js/issues/43402 */}
         <script
           id="load-theme"
           dangerouslySetInnerHTML={{

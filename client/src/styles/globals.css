@@ -1,7 +1,32 @@
-@tailwind base;
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: dark --default;
+}
+
+@theme {
+  --font-jose-reg: "JoseR";
+  --font-jose-bold: "JoseB";
+  --color-c1: oklch(0.792 0.209 151.711);
+}
+
+@font-face {
+  font-family: "JoseR";
+  src: url("../fonts/JosefinSans-Regular.ttf");
+}
+@font-face {
+  font-family: "JoseB";
+  src: url("../fonts/JosefinSans-SemiBold.ttf");
+}
+button {
+  @apply font-light;
+}
 
 * {
   scrollbar-width: thin;
+  font-family: "JoseR";
+}
+.grad1 {
+  @apply bg-gradient-to-r from-green-500 to-sky-600;
 }
 
 *::-webkit-scrollbar {
@@ -13,5 +38,6 @@
   border-radius: 2px;
 }
 
-@tailwind components;
-@tailwind utilities;
+.fx {
+  @apply flex items-center justify-center;
+}

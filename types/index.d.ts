@@ -21,6 +21,7 @@ export interface User {
     wins?: number;
     losses?: number;
     draws?: number;
+    verified?: boolean;
 
     // mainly for players, not spectators
     connected?: boolean;
