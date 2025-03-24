@@ -157,8 +157,6 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
         true
     );
 
-    console.log(users);
-
     if (!users || !users.length) {
         throw new Error("Invalid email or password.");
     }

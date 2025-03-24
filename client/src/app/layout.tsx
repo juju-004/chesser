@@ -37,9 +37,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className="overflow-x-hidden">
       <body className="overflow-x-hidden">
         <ContextProvider>
-          <main className="mx-1 flex justify-center md:mx-16 lg:mx-40">
-            <ToastProvider>{children}</ToastProvider>
-          </main>
+          {/* <main className="mx-1 flex justify-center md:mx-16 lg:mx-40"> */}
+          <ToastProvider>{children}</ToastProvider>
+          {/* </main> */}
         </ContextProvider>
         <script
           id="load-theme"
