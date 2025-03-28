@@ -160,6 +160,63 @@ export async function getLatestGame(this: Socket) {
     if (game) this.emit("receivedLatestGame", game);
 }
 
+// Initialize timer for a game
+function initializeTimer(game: Game) {
+    if (!game.timeControl) return; // if no time control, skip timer
+
+    game.timer = {
+        whiteTime: game.timeControl * 60 * 1000, // convert minutes to ms
+        blackTime: game.timeControl * 60 * 1000,
+        lastUpdate: Date.now(),
+        activeColor: "white" // white starts first
+    };
+
+    // Start the timer interval
+    game.timer.interval = setInterval(() => {
+        if (!game.timer) return;
+
+        const now = Date.now();
+        const elapsed = now - game.timer.lastUpdate;
+
+        if (game.timer.activeColor === "white") {
+            game.timer.whiteTime -= elapsed;
+        } else {
+            game.timer.blackTime -= elapsed;
+        }
+
+        game.timer.lastUpdate = now;
+
+        // Emit updated times to all clients in this game
+        io.to(game.code).emit("timeUpdate", {
+            whiteTime: game.timer.whiteTime,
+            blackTime: game.timer.blackTime
+        });
+
+        // Check for timeout
+        if (game.timer.whiteTime <= 0 || game.timer.blackTime <= 0) {
+            clearInterval(game.timer.interval);
+
+            const winnerSide = game.timer.whiteTime <= 0 ? "black" : "white";
+            const winnerName = winnerSide === "white" ? game.white?.name : game.black?.name;
+
+            game.winner = winnerSide;
+            game.endReason = "timeout";
+
+            io.to(game.code).emit("gameOver", {
+                reason: "timeout",
+                winnerName,
+                winnerSide,
+                id: game.id
+            });
+
+            // Clean up
+            if (game.timeout) clearTimeout(game.timeout);
+            activeGames.splice(activeGames.indexOf(game), 1);
+        }
+    }, 1000); // Update every second
+}
+
+// Modified sendMove function with timer support
 export async function sendMove(this: Socket, m: { from: string; to: string; promotion?: string }) {
     const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
     if (!game || game.endReason || game.winner) return;
@@ -170,6 +227,7 @@ export async function sendMove(this: Socket, m: { from: string; to: string; prom
 
     try {
         const prevTurn = chess.turn();
+        const prevColor = prevTurn === "w" ? "white" : "black";
 
         if (
             (prevTurn === "b" && this.request.session.user.id !== game.black?.id) ||
@@ -181,8 +239,22 @@ export async function sendMove(this: Socket, m: { from: string; to: string; prom
         const newMove = chess.move(m);
 
         if (newMove) {
+            // Update timer if time control is enabled
+            if (game.timer) {
+                // Switch active color in the timer
+                game.timer.activeColor = prevColor === "white" ? "black" : "white";
+                game.timer.lastUpdate = Date.now();
+
+                // Send time update immediately after move
+                io.to(game.code).emit("timeUpdate", {
+                    whiteTime: game.timer.whiteTime,
+                    blackTime: game.timer.blackTime
+                });
+            }
+
             game.pgn = chess.pgn();
-            this.to(game.code as string).emit("receivedMove", m);
+            this.to(game.code).emit("receivedMove", m);
+
             if (chess.isGameOver()) {
                 let reason: Game["endReason"];
                 if (chess.isCheckmate()) reason = "checkmate";
@@ -206,10 +278,15 @@ export async function sendMove(this: Socket, m: { from: string; to: string; prom
                 }
                 game.endReason = reason;
 
+                // Clean up timer if exists
+                if (game.timer?.interval) {
+                    clearInterval(game.timer.interval);
+                }
+
                 const { id } = await GameService.save(game); // save game to db
                 game.id = id;
 
-                io.to(game.code as string).emit("gameOver", { reason, winnerName, winnerSide, id });
+                io.to(game.code).emit("gameOver", { reason, winnerName, winnerSide, id });
 
                 if (game.timeout) clearTimeout(game.timeout);
                 activeGames.splice(activeGames.indexOf(game), 1);
@@ -222,6 +299,13 @@ export async function sendMove(this: Socket, m: { from: string; to: string; prom
         this.emit("receivedLatestGame", game);
     }
 }
+
+// Don't forget to initialize the timer when creating a new game
+// Wherever you create new games, add:
+// if (timeControl) {
+//     game.timeControl = timeControl;
+//     initializeTimer(game);
+// }
 
 // eslint-disable-next-line no-unused-vars
 export async function joinAsPlayer(this: Socket) {

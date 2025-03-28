@@ -20,4 +20,6 @@ router.route("/logout").post(controller.logoutSession);
 router.route("/register").post(controller.registerUser);
 router.route("/login").post(controller.loginUser);
 
+router.route("/wallet").get(controller.getWallet);
+
 export default router;

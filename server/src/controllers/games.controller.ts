@@ -4,6 +4,8 @@ import { nanoid } from "nanoid";
 
 import GameService, { activeGames } from "../db/services/game.js"; // Adjusted import to match your project structure
 import { asyncHandler } from "../db/helper.js";
+import UserService from "../db/services/user.js";
+import { UserModel } from "../db/index.js";
 
 export const getGames = async (req: Request, res: Response) => {
     try {
@@ -65,18 +67,37 @@ export const createGame = asyncHandler(async (req: Request, res: Response) => {
         throw new Error("Unauthorized createGame");
     }
 
+    const timeControl = parseFloat(req.body.timeControl);
+    const amount = parseFloat(req.body.amount);
+
+    const findUser = await UserModel.find({
+        $or: [{ name: req.session.user?.name }, { email: req.session.user?.name }]
+    });
+
+    if (isNaN(amount) || amount < 100) {
+        throw new Error("Invalid amount");
+    }
+
+    if (findUser[0]?.wallet < amount) {
+        throw new Error("Insufficient funds");
+    }
+
+    if (isNaN(timeControl) || timeControl < 1) {
+        throw new Error("Invalid time control");
+    }
+
     const user: User = {
         id: req.session.user.id,
         name: req.session.user.name,
         connected: false
     };
 
-    const unlisted: boolean = req.body.unlisted ?? false;
     const game: Game = {
         code: nanoid(6),
-        unlisted,
         host: user,
-        pgn: ""
+        pgn: "",
+        stake: amount,
+        timeControl
     };
 
     // Assign sides to the user based on input or randomly

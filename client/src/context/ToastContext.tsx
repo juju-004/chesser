@@ -34,7 +34,7 @@ export default function ToastProvider({ children }: ToastProviderProps) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {alert && (
-        <div className="toast toast-top toast-center">
+        <div className="toast toast-top toast-center z-[9999]">
           <div
             className={`alert alert-soft block ${
               alert.status === "success" ? "alert-success" : "alert-error"

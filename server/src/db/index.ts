@@ -24,6 +24,7 @@ const userSchema = new mongoose.Schema(
         draws: { type: Number, default: 0 },
         verified: { type: Boolean, default: false },
         token: { type: String },
+        wallet: { type: Number, default: 0 },
         forgotPassPassword: { type: String }
     },
     { timestamps: true }

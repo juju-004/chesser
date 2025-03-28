@@ -370,3 +370,28 @@ export const forgotPassEmailVerification = asyncHandler(async (req: Request, res
 
     res.status(200).json({ message: "Email verified successfully" });
 });
+
+export const getWallet = async (req: Request, res: Response) => {
+    try {
+        if (!req.session.user) {
+            res.status(404).end();
+            return;
+        }
+
+        const name = xss(req.session.user?.name); // Sanitize the input to prevent XSS
+
+        const users = await UserModel.find({
+            $or: [{ name }, { email: name }]
+        });
+
+        if (!users || !users.length) {
+            res.status(404).end();
+            return;
+        }
+
+        res.status(200).json({ balance: users[0].wallet });
+    } catch (err: unknown) {
+        console.log(err);
+        res.status(500).end();
+    }
+};

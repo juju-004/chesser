@@ -16,7 +16,7 @@ function Login() {
   const { toast } = useToast();
   const { push } = useRouter();
   const [disabled, setDisabled] = useState(false);
-  const [mail, setMail] = useState(null);
+  const [mail, setMail] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
 
   const signin = async (formData: any) => {
@@ -49,7 +49,7 @@ function Login() {
       if (typeof user === "string") {
         toast(user, "error");
       } else if (user?.email) {
-        setMail(user?.email);
+        setMail(user.email);
       }
       setDisabled(false);
     }, 700);

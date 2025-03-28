@@ -29,6 +29,11 @@ button {
   @apply bg-gradient-to-r from-green-500 to-sky-600;
 }
 
+.input:focus,
+.select:focus {
+  @apply border-sky-600 outline-0;
+}
+
 *::-webkit-scrollbar {
   width: 4px;
 }
