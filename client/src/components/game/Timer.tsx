@@ -1,31 +1,96 @@
-import { useEffect, useState } from "react";
+// components/ChessTimer.tsx
+import { useEffect, useState, useRef, useCallback } from "react";
 
-// Add this component above your GamePage component
+interface ChessTimerProps {
+  color: "white" | "black";
+  initialTime: number;
+  active: boolean;
+  timerStarted: boolean;
+  lowTimeThreshold?: number;
+}
+
 export const ChessTimer = ({
   color,
-  time,
-  active
-}: {
-  color: "white" | "black";
-  time: number;
-  active: boolean;
-}) => {
+  initialTime,
+  active,
+  timerStarted,
+  lowTimeThreshold = 30000
+}: ChessTimerProps) => {
+  const [time, setTime] = useState(initialTime);
   const [displayTime, setDisplayTime] = useState("5:00");
+  const animationRef = useRef<number>();
+  const lastUpdateRef = useRef(Date.now());
+  const lastServerTimeRef = useRef(initialTime);
+  const isMountedRef = useRef(true);
 
+  // Format time for display
+  const formatTime = useCallback((ms: number) => {
+    const totalSeconds = Math.ceil(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  }, []);
+
+  // Update the timer display
+  const updateTimer = useCallback(() => {
+    if (!isMountedRef.current || !timerStarted) return;
+
+    const now = Date.now();
+    const elapsed = now - lastUpdateRef.current;
+
+    setTime((prev) => {
+      const newTime = Math.max(0, prev - elapsed);
+      setDisplayTime(formatTime(newTime));
+      return newTime;
+    });
+
+    lastUpdateRef.current = now;
+    animationRef.current = requestAnimationFrame(updateTimer);
+  }, [timerStarted, formatTime]);
+
+  // Handle timer start/stop
   useEffect(() => {
-    const formatTime = (ms: number) => {
-      if (ms <= 0) return "0:00";
-      const totalSeconds = Math.floor(ms / 1000);
-      const minutes = Math.floor(totalSeconds / 60);
-      const seconds = totalSeconds % 60;
-      return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-    };
+    if (active && timerStarted) {
+      lastUpdateRef.current = Date.now();
+      animationRef.current = requestAnimationFrame(updateTimer);
+    } else if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
 
-    setDisplayTime(formatTime(time));
-  }, [time]);
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [active, timerStarted, updateTimer]);
+
+  // Sync with server updates
+  useEffect(() => {
+    // Only update if server time differs significantly (>1s)
+    if (Math.abs(initialTime - lastServerTimeRef.current) > 1000) {
+      setTime(initialTime);
+      setDisplayTime(formatTime(initialTime));
+      lastUpdateRef.current = Date.now();
+      lastServerTimeRef.current = initialTime;
+    }
+  }, [initialTime, formatTime]);
+
+  // Initial setup
+  useEffect(() => {
+    setDisplayTime(formatTime(initialTime));
+    lastServerTimeRef.current = initialTime;
+    return () => {
+      isMountedRef.current = false;
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [initialTime, formatTime]);
 
   return (
-    <div className={`timer ${color} ${active ? "active" : ""} ${time <= 30000 ? "low-time" : ""}`}>
+    <div
+      className={`timer ${color} ${active && timerStarted ? "active" : ""} ${time <= lowTimeThreshold ? "low-time" : ""}`}
+    >
       <div className="time-display">{displayTime}</div>
     </div>
   );

@@ -31,3 +31,7 @@ export interface Message {
     author: User;
     message: string;
 }
+
+export interface Session {
+    user: User;
+}

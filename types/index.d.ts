@@ -1,9 +1,9 @@
-// First, let's define a timer interface at the top of your file
-interface GameTimer {
+export interface GameTimer {
     whiteTime: number; // in milliseconds
     blackTime: number; // in milliseconds
     lastUpdate: number; // timestamp
     activeColor: "white" | "black";
+    started: boolean;
     interval?: NodeJS.Timeout;
 }
 
@@ -29,7 +29,7 @@ export interface Game {
     startedAt?: number;
     endedAt?: number;
     timer?: GameTimer;
-    timeControl?: number; // in minutes
+    timeControl: number; // in minutes
     stake?: number;
 }
 

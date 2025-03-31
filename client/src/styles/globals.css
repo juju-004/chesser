@@ -46,3 +46,37 @@ button {
 .fx {
   @apply flex items-center justify-center;
 }
+/* styles/Timer.module.css */
+.timer {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  font-size: 1.25rem;
+  transition: all 0.3s ease;
+  @apply bg-base-300;
+}
+
+.timer.active {
+  @apply bg-success/15;
+}
+
+.timer.low-time {
+  @apply bg-error/15;
+}
+
+.time-display {
+  min-width: 4rem;
+  text-align: center;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+}

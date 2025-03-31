@@ -154,72 +154,53 @@ export async function claimAbandoned(this: Socket, type: "win" | "draw") {
     activeGames.splice(activeGames.indexOf(game), 1);
 }
 
-// eslint-disable-next-line no-unused-vars
 export async function getLatestGame(this: Socket) {
     const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
     if (game) this.emit("receivedLatestGame", game);
 }
 
-// Initialize timer for a game
-function initializeTimer(game: Game) {
-    if (!game.timeControl) return; // if no time control, skip timer
+const timer = (game: Game) => {
+    const now = Date.now();
+    const elapsed = now - game.timer.lastUpdate;
 
-    game.timer = {
-        whiteTime: game.timeControl * 60 * 1000, // convert minutes to ms
-        blackTime: game.timeControl * 60 * 1000,
-        lastUpdate: Date.now(),
-        activeColor: "white" // white starts first
-    };
+    // Update the active player's time
+    if (game.timer.activeColor === "white") {
+        game.timer.whiteTime = Math.max(0, game.timer.whiteTime - elapsed);
+    } else {
+        game.timer.blackTime = Math.max(0, game.timer.blackTime - elapsed);
+    }
 
-    // Start the timer interval
-    game.timer.interval = setInterval(() => {
-        if (!game.timer) return;
+    game.timer.lastUpdate = now;
 
-        const now = Date.now();
-        const elapsed = now - game.timer.lastUpdate;
+    // Broadcast update to all clients
+    io.to(game.code).emit("timeUpdate", {
+        whiteTime: game.timer.whiteTime,
+        blackTime: game.timer.blackTime,
+        activeColor: game.timer.activeColor,
+        timerStarted: game.timer.started
+    });
 
-        if (game.timer.activeColor === "white") {
-            game.timer.whiteTime -= elapsed;
-        } else {
-            game.timer.blackTime -= elapsed;
-        }
+    // Check for timeout
+    if (game.timer.whiteTime <= 0 || game.timer.blackTime <= 0) {
+        const winnerSide = game.timer.whiteTime <= 0 ? "black" : "white";
+        const winnerName = winnerSide === "white" ? game.white?.name : game.black?.name;
 
-        game.timer.lastUpdate = now;
+        game.winner = winnerSide;
+        game.endReason = "timeout";
 
-        // Emit updated times to all clients in this game
-        io.to(game.code).emit("timeUpdate", {
-            whiteTime: game.timer.whiteTime,
-            blackTime: game.timer.blackTime
+        io.to(game.code).emit("gameOver", {
+            reason: "timeout",
+            winnerName,
+            winnerSide,
+            id: game.id
         });
+    }
+};
 
-        // Check for timeout
-        if (game.timer.whiteTime <= 0 || game.timer.blackTime <= 0) {
-            clearInterval(game.timer.interval);
-
-            const winnerSide = game.timer.whiteTime <= 0 ? "black" : "white";
-            const winnerName = winnerSide === "white" ? game.white?.name : game.black?.name;
-
-            game.winner = winnerSide;
-            game.endReason = "timeout";
-
-            io.to(game.code).emit("gameOver", {
-                reason: "timeout",
-                winnerName,
-                winnerSide,
-                id: game.id
-            });
-
-            // Clean up
-            if (game.timeout) clearTimeout(game.timeout);
-            activeGames.splice(activeGames.indexOf(game), 1);
-        }
-    }, 1000); // Update every second
-}
-
-// Modified sendMove function with timer support
 export async function sendMove(this: Socket, m: { from: string; to: string; promotion?: string }) {
     const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
     if (!game || game.endReason || game.winner) return;
+
     const chess = new Chess();
     if (game.pgn) {
         chess.loadPgn(game.pgn);
@@ -236,63 +217,75 @@ export async function sendMove(this: Socket, m: { from: string; to: string; prom
             throw new Error("not turn to move");
         }
 
+        // Track if both players have moved
+        const moveHistory = chess.history();
+        const isSecondMove = moveHistory.length === 1;
+
         const newMove = chess.move(m);
+        if (!newMove) throw new Error("invalid move");
 
-        if (newMove) {
-            // Update timer if time control is enabled
-            if (game.timer) {
-                // Switch active color in the timer
-                game.timer.activeColor = prevColor === "white" ? "black" : "white";
-                game.timer.lastUpdate = Date.now();
+        game.pgn = chess.pgn();
 
-                // Send time update immediately after move
-                io.to(game.code).emit("timeUpdate", {
-                    whiteTime: game.timer.whiteTime,
-                    blackTime: game.timer.blackTime
-                });
-            }
+        // Initialize timer on first move if not already done
+        if (!game.timer) {
+            game.timer = {
+                whiteTime: game.timeControl * 60 * 1000,
+                blackTime: game.timeControl * 60 * 1000,
+                lastUpdate: Date.now(),
+                activeColor: "white",
+                started: false
+            };
+        }
 
-            game.pgn = chess.pgn();
-            this.to(game.code).emit("receivedMove", m);
+        // Only start counting time after both players have moved
+        if (isSecondMove) {
+            game.timer.started = true;
+            game.timer.lastUpdate = Date.now(); // Reset the clock start time
+        }
 
-            if (chess.isGameOver()) {
-                let reason: Game["endReason"];
-                if (chess.isCheckmate()) reason = "checkmate";
-                else if (chess.isStalemate()) reason = "stalemate";
-                else if (chess.isThreefoldRepetition()) reason = "repetition";
-                else if (chess.isInsufficientMaterial()) reason = "insufficient";
-                else if (chess.isDraw()) reason = "draw";
-
-                const winnerSide =
-                    reason === "checkmate" ? (prevTurn === "w" ? "white" : "black") : undefined;
-                const winnerName =
-                    reason === "checkmate"
-                        ? winnerSide === "white"
-                            ? game.white?.name
-                            : game.black?.name
-                        : undefined;
-                if (reason === "checkmate") {
-                    game.winner = winnerSide;
-                } else {
-                    game.winner = "draw";
-                }
-                game.endReason = reason;
-
-                // Clean up timer if exists
-                if (game.timer?.interval) {
+        if (game.timer.started) {
+            const startTimerInterval = (game: Game) => {
+                if (game.timer.interval) {
                     clearInterval(game.timer.interval);
+                } else {
+                    timer(game);
                 }
 
-                const { id } = await GameService.save(game); // save game to db
-                game.id = id;
+                game.timer.interval = setInterval(() => {
+                    timer(game);
 
-                io.to(game.code).emit("gameOver", { reason, winnerName, winnerSide, id });
+                    if (game.timeout) clearTimeout(game.timeout);
+                    activeGames.splice(activeGames.indexOf(game), 1);
+                    return;
+                }, 1000); // Update every second
+            };
 
-                if (game.timeout) clearTimeout(game.timeout);
-                activeGames.splice(activeGames.indexOf(game), 1);
-            }
-        } else {
-            throw new Error("invalid move");
+            startTimerInterval(game);
+        }
+
+        // Emit updates
+        this.to(game.code).emit("receivedMove", m);
+
+        // Handle game over conditions
+        if (chess.isGameOver()) {
+            let reason: Game["endReason"];
+            if (chess.isCheckmate()) reason = "checkmate";
+            else if (chess.isStalemate()) reason = "stalemate";
+            else if (chess.isThreefoldRepetition()) reason = "repetition";
+            else if (chess.isInsufficientMaterial()) reason = "insufficient";
+            else if (chess.isDraw()) reason = "draw";
+
+            const winnerSide = reason === "checkmate" ? prevColor : undefined;
+            const winnerName = winnerSide ? game[winnerSide]?.name : undefined;
+
+            game.winner = reason === "checkmate" ? winnerSide : "draw";
+            game.endReason = reason;
+
+            const { id } = await GameService.save(game);
+            game.id = id;
+
+            io.to(game.code).emit("gameOver", { reason, winnerName, winnerSide, id });
+            activeGames.splice(activeGames.indexOf(game), 1);
         }
     } catch (e) {
         console.log("sendMove error: " + e);
@@ -300,18 +293,11 @@ export async function sendMove(this: Socket, m: { from: string; to: string; prom
     }
 }
 
-// Don't forget to initialize the timer when creating a new game
-// Wherever you create new games, add:
-// if (timeControl) {
-//     game.timeControl = timeControl;
-//     initializeTimer(game);
-// }
-
-// eslint-disable-next-line no-unused-vars
 export async function joinAsPlayer(this: Socket) {
     const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
     if (!game) return;
     const user = game.observers?.find((o) => o.id === this.request.session.user.id);
+
     if (!game.white) {
         const sessionUser = {
             id: this.request.session.user.id,

@@ -5,9 +5,10 @@ import type { Game } from "@chessu/types";
 import { useContext } from "react";
 
 import GamePage from "./GamePage";
+import { Session } from "@/types";
 
 export default function GameAuthWrapper({ initialLobby }: { initialLobby: Game }) {
-  const session = useContext(SessionContext);
+  const session: Session = useContext(SessionContext);
 
   if (!session?.user || !session.user?.id) {
     return (

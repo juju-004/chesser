@@ -3,13 +3,13 @@
 
 import { IconChevronLeft, IconChevronRight, IconMenu } from "@tabler/icons-react";
 
-import type { FormEvent, KeyboardEvent } from "react";
+import type { FormEvent } from "react";
 
 import { SessionContext } from "@/context/session";
 import { useContext, useEffect, useReducer, useRef, useState } from "react";
 
-import type { Message } from "@/types";
-import type { Game } from "@chessu/types";
+import type { Message, Session } from "@/types";
+import type { Game, GameTimer } from "@chessu/types";
 
 import type { Move, Square } from "chess.js";
 import { Chess } from "chess.js";
@@ -23,13 +23,14 @@ import { lobbyReducer, squareReducer } from "./reducers";
 import { initSocket } from "./socketEvents";
 import { syncPgn, syncSide } from "./utils";
 import { IconMessage2 } from "@tabler/icons-react";
-import { IconSend2 } from "@tabler/icons-react";
 import { CopyLinkButton } from "./CopyLink";
+import { ChessTimer } from "./Timer";
+import Chat from "./Chat";
 
 const socket = io(API_URL, { withCredentials: true, autoConnect: false });
 
 export default function GamePage({ initialLobby }: { initialLobby: Game }) {
-  const session = useContext(SessionContext);
+  const session: Session = useContext(SessionContext);
 
   const [lobby, updateLobby] = useReducer(lobbyReducer, {
     ...initialLobby,
@@ -50,11 +51,15 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
 
   const [navFen, setNavFen] = useState<string | null>(null);
   const [navIndex, setNavIndex] = useState<number | null>(null);
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
 
   const [playBtnLoading, setPlayBtnLoading] = useState(false);
-  const [chatMessages, setChatMessages] = useState<Message[]>([]);
-  const chatListRef = useRef<HTMLUListElement>(null);
   const moveListRef = useRef<HTMLDivElement>(null);
+  // Add this near your other state declarations
+  const [whiteTime, setWhiteTime] = useState<number>(initialLobby.timeControl * 60 * 1000); // default init minutes
+  const [blackTime, setBlackTime] = useState<number>(initialLobby.timeControl * 60 * 1000);
+  const [activeColor, setActiveColor] = useState<"white" | "black">("white");
+  const [timerStarted, setTimerStarted] = useState(false);
 
   const [abandonSeconds, setAbandonSeconds] = useState(60);
   useEffect(() => {
@@ -106,7 +111,8 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
       updateCustomSquares,
       makeMove,
       setNavFen,
-      setNavIndex
+      setNavIndex,
+      updateTimer
     });
 
     return () => {
@@ -116,13 +122,6 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // auto scroll down when new message is added
-  useEffect(() => {
-    const chatList = chatListRef.current;
-    if (!chatList) return;
-    chatList.scrollTop = chatList.scrollHeight;
-  }, [chatMessages]);
 
   // auto scroll for moves
   useEffect(() => {
@@ -159,45 +158,26 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
     // }
   }
 
-  // Chat start
+  // Chat
   function addMessage(message: Message) {
     setChatMessages((prev) => [...prev, message]);
   }
 
-  function sendChat(message: string) {
-    if (!session?.user) return;
-
-    socket.emit("chat", message);
-    addMessage({ author: session.user, message });
+  // Clock timer
+  function updateTimer({ whiteTime, blackTime, activeColor, started }: GameTimer) {
+    setWhiteTime(whiteTime);
+    setBlackTime(blackTime);
+    setActiveColor(activeColor);
+    setTimerStarted(started);
   }
 
-  function chatKeyUp(e: KeyboardEvent<HTMLInputElement>) {
-    e.preventDefault();
-    if (e.key === "Enter") {
-      const input = e.target as HTMLInputElement;
-      if (!input.value || input.value.length == 0) return;
-      sendChat(input.value);
-      input.value = "";
-    }
-  }
-
-  function chatClickSend(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-
-    const target = e.target as HTMLFormElement;
-    const input = target.elements.namedItem("chatInput") as HTMLInputElement;
-    if (!input.value || input.value.length == 0) return;
-    sendChat(input.value);
-    input.value = "";
-  }
-  // Chat end
-
-  //
   function makeMove(m: { from: string; to: string; promotion?: string }) {
     try {
       const result = lobby.actualGame.move(m);
 
       if (result) {
+        setActiveColor(result.color === "w" ? "black" : "white");
+
         setNavFen(null);
         setNavIndex(null);
         updateLobby({
@@ -353,7 +333,7 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
 
   function getPlayerHtml(side: "top" | "bottom") {
     const blackHtml = (
-      <div className="flex justify-between">
+      <div className="ml-3 flex items-center justify-between gap-4">
         <div className="flex w-full flex-col justify-center">
           <a
             className={
@@ -367,33 +347,48 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
             {lobby.black?.name || "(no one)"}
           </a>
           <span className="flex items-center gap-1 text-xs">
-            black
+            <span className="opacity-65">black</span>
             {lobby.black?.connected === false && (
               <span className="badge badge-xs badge-error">disconnected</span>
             )}
           </span>
         </div>
+        <ChessTimer
+          color="black"
+          initialTime={blackTime}
+          active={activeColor === "black"}
+          timerStarted={timerStarted}
+        />
       </div>
     );
+
     const whiteHtml = (
-      <div className="flex w-full flex-col justify-center">
-        <a
-          className={
-            (lobby.white?.name ? "font-bold" : "") +
-            (typeof lobby.white?.id === "number" ? " text-primary link-hover" : " cursor-default")
-          }
-          href={typeof lobby.white?.id === "number" ? `/user/${lobby.white?.name}` : undefined}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {lobby.white?.name || "(no one)"}
-        </a>
-        <span className="flex items-center gap-1 text-xs">
-          white
-          {lobby.white?.connected === false && (
-            <span className="badge badge-xs badge-error">disconnected</span>
-          )}
-        </span>
+      <div className="flex items-center justify-between gap-4">
+        <div className="ml-3 flex w-full flex-col justify-center">
+          <a
+            className={
+              (lobby.white?.name ? "font-bold" : "") +
+              (typeof lobby.white?.id === "number" ? " text-primary link-hover" : " cursor-default")
+            }
+            href={typeof lobby.white?.id === "number" ? `/user/${lobby.white?.name}` : undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {lobby.white?.name || "(no one)"}
+          </a>
+          <span className="flex items-center gap-1 text-xs">
+            <span className="opacity-65">white</span>
+            {lobby.white?.connected === false && (
+              <span className="badge badge-xs badge-error">disconnected</span>
+            )}
+          </span>
+        </div>
+        <ChessTimer
+          color="white"
+          initialTime={whiteTime}
+          active={activeColor === "white"}
+          timerStarted={timerStarted}
+        />
       </div>
     );
 
@@ -403,59 +398,6 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
       return side === "top" ? blackHtml : whiteHtml;
     }
   }
-
-  // function getMoveListHtml() {
-  //   const history = lobby.actualGame.history({ verbose: true });
-  //   const movePairs = history
-  //     .slice(history.length / 2)
-  //     .map((_, i) => history.slice((i *= 2), i + 2));
-
-  //   return movePairs.map((moves, i) => {
-  //     return (
-  //       <tr className="flex w-full items-center gap-1" key={i + 1}>
-  //         <td className="">{i + 1}.</td>
-  //         <td
-  //           className={
-  //             "btn btn-ghost btn-xs h-full w-2/5 font-normal normal-case" +
-  //             ((history.indexOf(moves[0]) === history.length - 1 && navIndex === null) ||
-  //             navIndex === history.indexOf(moves[0])
-  //               ? " btn-active pointer-events-none rounded-none"
-  //               : "")
-  //           }
-  //           id={
-  //             (history.indexOf(moves[0]) === history.length - 1 && navIndex === null) ||
-  //             navIndex === history.indexOf(moves[0])
-  //               ? "activeNavMove"
-  //               : ""
-  //           }
-  //           onClick={() => navigateMove(history.indexOf(moves[0]))}
-  //         >
-  //           {moves[0].san}
-  //         </td>
-  //         {moves[1] && (
-  //           <td
-  //             className={
-  //               "btn btn-ghost btn-xs h-full w-2/5 font-normal normal-case" +
-  //               ((history.indexOf(moves[1]) === history.length - 1 && navIndex === null) ||
-  //               navIndex === history.indexOf(moves[1])
-  //                 ? " btn-active pointer-events-none rounded-none"
-  //                 : "")
-  //             }
-  //             id={
-  //               (history.indexOf(moves[1]) === history.length - 1 && navIndex === null) ||
-  //               navIndex === history.indexOf(moves[1])
-  //                 ? "activeNavMove"
-  //                 : ""
-  //             }
-  //             onClick={() => navigateMove(history.indexOf(moves[1]))}
-  //           >
-  //             {moves[1].san}
-  //           </td>
-  //         )}
-  //       </tr>
-  //     );
-  //   });
-  // }
 
   function navigateMove(index: number | null | "prev") {
     const history = lobby.actualGame.history({ verbose: true });
@@ -509,7 +451,7 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
     <div className="drawer drawer-end">
       <input id="my-drawer-4" type="checkbox" className="drawer-toggle" />
       <div className="drawer-content">
-        <div className="ov flex min-h-[calc(100vh-70px)] w-full flex-col justify-center gap-6 py-4 lg:gap-10 2xl:gap-16">
+        <div className="ov relative flex min-h-[calc(100vh-70px)] w-full flex-col justify-center gap-6 py-4 lg:gap-10 2xl:gap-16">
           {getPlayerHtml("top")}
           <div className="relative h-min">
             {/* overlay */}
@@ -526,7 +468,7 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
                     </button>
                   ) : (
                     <>
-                      Waiting for opponent.
+                      <span className="opacity-80">Waiting for opponent.</span>
                       <CopyLinkButton
                         className="bg-base-300 text-base-content fx h-8 gap-2 rounded-2xl px-3 font-mono text-xs active:opacity-60 sm:h-5 sm:text-sm"
                         link={`localhost:3000/${lobby.endReason ? `archive/${lobby.id}` : initialLobby.code}`}
@@ -542,6 +484,7 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
               customDarkSquareStyle={{ backgroundColor: "#4b7399" }}
               customLightSquareStyle={{ backgroundColor: "#eae9d2" }}
               position={navFen || lobby.actualGame.fen()}
+              animationDuration={0.1}
               boardOrientation={lobby.side === "b" ? "black" : "white"}
               isDraggablePiece={isDraggablePiece}
               onPieceDragBegin={onPieceDragBegin}
@@ -622,10 +565,32 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
             )}
           </>
 
+          {lobby.white?.id && lobby.black?.id && (
+            <div className="absolute inset-x-0 top-0 z-20 mt-1 py-1 text-center text-sm opacity-50">
+              Waiting for {activeColor}.. auto abort in 20s
+            </div>
+          )}
+
           <div className="dock dock-sm">
-            <button>
-              <IconMenu />
-            </button>
+            <div className="fx h-auto">
+              <div className="dropdown dropdown-top">
+                <div tabIndex={0} role="button" className="m-2">
+                  <IconMenu />
+                </div>
+                <ul
+                  tabIndex={0}
+                  className="dropdown-content menu bg-base-200 rounded-box z-1 w-52 p-2 shadow-sm"
+                >
+                  <li>
+                    <a>Offer Draw</a>
+                  </li>
+                  <li>
+                    <a>Resign</a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
             <button
               className={
                 navIndex === 0 || lobby.actualGame.history().length <= 1
@@ -651,77 +616,13 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
           </div>
         </div>
       </div>
-      <div className="drawer-side z-50">
-        <label htmlFor="my-drawer-4" aria-label="close sidebar" className="drawer-overlay"></label>
-
-        {/* ! Chat */}
-        <div className="bg-base-200 text-base-content flex min-h-full w-[90%] flex-col p-4">
-          <header className="flex w-full justify-center gap-1 pb-3">
-            Chat <IconMessage2 className="text-sky-600" />
-          </header>
-          <div className="bg-base-300 flex h-full w-full min-w-[64px] flex-1 flex-col overflow-y-scroll rounded-lg p-4 shadow-sm">
-            <ul
-              className="mb-4 flex h-full flex-col gap-1 overflow-y-scroll break-words"
-              ref={chatListRef}
-            >
-              {chatMessages.map((m, i) => (
-                <li
-                  className={
-                    "max-w-[30rem]" +
-                    (!m.author.id && m.author.name === "server"
-                      ? " bg-base-content text-base-300 p-2"
-                      : "")
-                  }
-                  key={i}
-                >
-                  <span>
-                    {m.author.id && (
-                      <span>
-                        <a
-                          className={
-                            "font-bold" +
-                            (typeof m.author.id === "number"
-                              ? " text-primary link-hover"
-                              : " cursor-default")
-                          }
-                          href={
-                            typeof m.author.id === "number" ? `/user/${m.author.name}` : undefined
-                          }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {m.author.name}
-                        </a>
-                        :{" "}
-                      </span>
-                    )}
-                    <span>{m.message}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          {lobby.observers && lobby.observers.length > 0 && (
-            <div className="w-full px-2 text-xs md:px-0">
-              Spectators: {lobby.observers?.map((o) => o.name).join(", ")}
-            </div>
-          )}
-          <form className="mt-5 flex px-1" onSubmit={chatClickSend}>
-            <input
-              type="text"
-              placeholder="Chat here..."
-              className="input input-bordered flex-grow rounded-2xl"
-              name="chatInput"
-              id="chatInput"
-              onKeyUp={chatKeyUp}
-              required
-            />
-            <button className="btn btn-square ml-1 rounded-2xl bg-sky-600" type="submit">
-              <IconSend2 />
-            </button>
-          </form>
-        </div>
-      </div>
+      <Chat
+        addMessage={addMessage}
+        chatMessages={chatMessages}
+        lobby={lobby}
+        session={session}
+        socket={socket}
+      />
     </div>
   );
 }
