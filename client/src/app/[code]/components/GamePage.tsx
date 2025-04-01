@@ -9,7 +9,7 @@ import { SessionContext } from "@/context/session";
 import { useContext, useEffect, useReducer, useRef, useState } from "react";
 
 import type { Message, Session } from "@/types";
-import type { Game, GameTimer } from "@chessu/types";
+import type { Game } from "@chessu/types";
 
 import type { Move, Square } from "chess.js";
 import { Chess } from "chess.js";
@@ -26,6 +26,14 @@ import { IconMessage2 } from "@tabler/icons-react";
 import { CopyLinkButton } from "./CopyLink";
 import { ChessTimer } from "./Timer";
 import Chat from "./Chat";
+
+interface GameTimerStarted {
+  whiteTime: number; // in milliseconds
+  blackTime: number; // in milliseconds
+  lastUpdate: number; // timestamp
+  activeColor: "white" | "black";
+  timerStarted: boolean;
+}
 
 const socket = io(API_URL, { withCredentials: true, autoConnect: false });
 
@@ -111,9 +119,18 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
       updateCustomSquares,
       makeMove,
       setNavFen,
-      setNavIndex,
-      updateTimer
+      setNavIndex
     });
+
+    socket.on(
+      "timeUpdate",
+      ({ whiteTime, blackTime, activeColor, timerStarted }: GameTimerStarted) => {
+        setWhiteTime(whiteTime);
+        setBlackTime(blackTime);
+        setActiveColor(activeColor);
+        setTimerStarted(timerStarted);
+      }
+    );
 
     return () => {
       window.removeEventListener("resize", handleResize);
@@ -161,14 +178,6 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
   // Chat
   function addMessage(message: Message) {
     setChatMessages((prev) => [...prev, message]);
-  }
-
-  // Clock timer
-  function updateTimer({ whiteTime, blackTime, activeColor, started }: GameTimer) {
-    setWhiteTime(whiteTime);
-    setBlackTime(blackTime);
-    setActiveColor(activeColor);
-    setTimerStarted(started);
   }
 
   function makeMove(m: { from: string; to: string; promotion?: string }) {
@@ -484,7 +493,6 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
               customDarkSquareStyle={{ backgroundColor: "#4b7399" }}
               customLightSquareStyle={{ backgroundColor: "#eae9d2" }}
               position={navFen || lobby.actualGame.fen()}
-              animationDuration={0.1}
               boardOrientation={lobby.side === "b" ? "black" : "white"}
               isDraggablePiece={isDraggablePiece}
               onPieceDragBegin={onPieceDragBegin}

@@ -16,7 +16,6 @@ export function initSocket(
         makeMove: Function;
         setNavFen: Dispatch<SetStateAction<string | null>>;
         setNavIndex: Dispatch<SetStateAction<number | null>>;
-        updateTimer: Function;
     }
 ) {
     socket.on("connect", () => {
@@ -25,10 +24,6 @@ export function initSocket(
 
     socket.on("chat", (message: Message) => {
         actions.addMessage(message);
-    });
-
-    socket.on("timeUpdate", ({ whiteTime, blackTime, activeColor, timerStarted }) => {
-        actions.updateTimer({ whiteTime, blackTime, activeColor, timerStarted });
     });
 
     socket.on("receivedLatestGame", (latestGame: Game) => {

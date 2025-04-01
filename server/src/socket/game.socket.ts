@@ -159,44 +159,6 @@ export async function getLatestGame(this: Socket) {
     if (game) this.emit("receivedLatestGame", game);
 }
 
-const timer = (game: Game) => {
-    const now = Date.now();
-    const elapsed = now - game.timer.lastUpdate;
-
-    // Update the active player's time
-    if (game.timer.activeColor === "white") {
-        game.timer.whiteTime = Math.max(0, game.timer.whiteTime - elapsed);
-    } else {
-        game.timer.blackTime = Math.max(0, game.timer.blackTime - elapsed);
-    }
-
-    game.timer.lastUpdate = now;
-
-    // Broadcast update to all clients
-    io.to(game.code).emit("timeUpdate", {
-        whiteTime: game.timer.whiteTime,
-        blackTime: game.timer.blackTime,
-        activeColor: game.timer.activeColor,
-        timerStarted: game.timer.started
-    });
-
-    // Check for timeout
-    if (game.timer.whiteTime <= 0 || game.timer.blackTime <= 0) {
-        const winnerSide = game.timer.whiteTime <= 0 ? "black" : "white";
-        const winnerName = winnerSide === "white" ? game.white?.name : game.black?.name;
-
-        game.winner = winnerSide;
-        game.endReason = "timeout";
-
-        io.to(game.code).emit("gameOver", {
-            reason: "timeout",
-            winnerName,
-            winnerSide,
-            id: game.id
-        });
-    }
-};
-
 export async function sendMove(this: Socket, m: { from: string; to: string; promotion?: string }) {
     const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
     if (!game || game.endReason || game.winner) return;
@@ -226,45 +188,72 @@ export async function sendMove(this: Socket, m: { from: string; to: string; prom
 
         game.pgn = chess.pgn();
 
-        // Initialize timer on first move if not already done
-        if (!game.timer) {
-            game.timer = {
-                whiteTime: game.timeControl * 60 * 1000,
-                blackTime: game.timeControl * 60 * 1000,
-                lastUpdate: Date.now(),
-                activeColor: "white",
-                started: false
-            };
-        }
+        const startTimerInterval = (game: Game) => {
+            if (game.timer.interval) {
+                clearInterval(game.timer.interval);
+            }
+
+            game.timer.interval = setInterval(() => {
+                const now = Date.now();
+                const elapsed = now - game.timer.lastUpdate;
+
+                // Update the active player's time
+                if (game.timer.activeColor === "white") {
+                    game.timer.whiteTime = Math.max(0, game.timer.whiteTime - elapsed);
+                } else {
+                    game.timer.blackTime = Math.max(0, game.timer.blackTime - elapsed);
+                }
+
+                game.timer.lastUpdate = now;
+
+                // Broadcast update to all clients
+                io.to(game.code).emit("timeUpdate", {
+                    whiteTime: game.timer.whiteTime,
+                    blackTime: game.timer.blackTime,
+                    activeColor: game.timer.activeColor,
+                    timerStarted: game.timer.started
+                });
+
+                // Check for timeout
+                if (game.timer.whiteTime <= 0 || game.timer.blackTime <= 0) {
+                    const winnerSide = game.timer.whiteTime <= 0 ? "black" : "white";
+                    const winnerName = winnerSide === "white" ? game.white?.name : game.black?.name;
+
+                    game.winner = winnerSide;
+                    game.endReason = "timeout";
+
+                    io.to(game.code).emit("gameOver", {
+                        reason: "timeout",
+                        winnerName,
+                        winnerSide,
+                        id: game.id
+                    });
+
+                    if (game.timeout) clearTimeout(game.timeout);
+                    activeGames.splice(activeGames.indexOf(game), 1);
+                    return;
+                }
+            }, 1000); // Update every second
+        };
 
         // Only start counting time after both players have moved
         if (isSecondMove) {
             game.timer.started = true;
             game.timer.lastUpdate = Date.now(); // Reset the clock start time
-        }
-
-        if (game.timer.started) {
-            const startTimerInterval = (game: Game) => {
-                if (game.timer.interval) {
-                    clearInterval(game.timer.interval);
-                } else {
-                    timer(game);
-                }
-
-                game.timer.interval = setInterval(() => {
-                    timer(game);
-
-                    if (game.timeout) clearTimeout(game.timeout);
-                    activeGames.splice(activeGames.indexOf(game), 1);
-                    return;
-                }, 1000); // Update every second
-            };
-
             startTimerInterval(game);
         }
+        // Switch active player
+        game.timer.activeColor = prevColor === "white" ? "black" : "white";
+        game.timer.lastUpdate = Date.now();
 
         // Emit updates
         this.to(game.code).emit("receivedMove", m);
+        io.to(game.code).emit("timeUpdate", {
+            whiteTime: game.timer.whiteTime,
+            blackTime: game.timer.blackTime,
+            activeColor: game.timer.activeColor,
+            timerStarted: game.timer.started
+        });
 
         // Handle game over conditions
         if (chess.isGameOver()) {
@@ -297,6 +286,8 @@ export async function joinAsPlayer(this: Socket) {
     const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
     if (!game) return;
     const user = game.observers?.find((o) => o.id === this.request.session.user.id);
+
+    console.log(this.request.session.user.id);
 
     if (!game.white) {
         const sessionUser = {

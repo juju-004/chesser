@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 
 import GameService, { activeGames } from "../db/services/game.js"; // Adjusted import to match your project structure
 import { asyncHandler } from "../db/helper.js";
-import UserService from "../db/services/user.js";
+// import UserService from "../db/services/user.js";
 import { UserModel } from "../db/index.js";
 
 export const getGames = async (req: Request, res: Response) => {
@@ -97,7 +97,15 @@ export const createGame = asyncHandler(async (req: Request, res: Response) => {
         host: user,
         pgn: "",
         stake: amount,
-        timeControl
+        timeControl,
+        timer: {
+            whiteTime: timeControl * 60 * 1000, // Convert minutes to ms
+            blackTime: timeControl * 60 * 1000,
+            lastUpdate: Date.now(),
+            activeColor: "white",
+            started: false,
+            interval: null
+        }
     };
 
     // Assign sides to the user based on input or randomly
