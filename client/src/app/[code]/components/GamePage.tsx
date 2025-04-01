@@ -1,7 +1,7 @@
 "use client";
 // TODO: restructure, i could use some help with this :>
 
-import { IconChevronLeft, IconChevronRight, IconMenu } from "@tabler/icons-react";
+import { IconChevronLeft, IconChevronRight, IconCrown, IconMenu } from "@tabler/icons-react";
 
 import type { FormEvent } from "react";
 
@@ -342,7 +342,7 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
 
   function getPlayerHtml(side: "top" | "bottom") {
     const blackHtml = (
-      <div className="ml-3 flex items-center justify-between gap-4">
+      <div className="relative ml-3 flex items-center justify-between gap-4">
         <div className="flex w-full flex-col justify-center">
           <a
             className={
@@ -357,6 +357,14 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
           </a>
           <span className="flex items-center gap-1 text-xs">
             <span className="opacity-65">black</span>
+            {lobby?.winner && lobby.winner === "black" && (
+              <>
+                <div className="text-success/50 absolute -top-2 left-1 -z-10 ml-1 -rotate-12">
+                  <IconCrown />
+                </div>
+                <span className="badge badge-xs badge-success text-white">winner</span>
+              </>
+            )}
             {lobby.black?.connected === false && (
               <span className="badge badge-xs badge-error">disconnected</span>
             )}
@@ -372,7 +380,7 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
     );
 
     const whiteHtml = (
-      <div className="flex items-center justify-between gap-4">
+      <div className="relative flex items-center justify-between gap-4">
         <div className="ml-3 flex w-full flex-col justify-center">
           <a
             className={
@@ -387,6 +395,14 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
           </a>
           <span className="flex items-center gap-1 text-xs">
             <span className="opacity-65">white</span>
+            {lobby?.winner && lobby.winner === "white" && (
+              <>
+                <div className="text-success/50 absolute -top-2 left-1 -z-10 ml-1 -rotate-12">
+                  <IconCrown />
+                </div>
+                <span className="badge badge-xs badge-success text-white">winner</span>
+              </>
+            )}
             {lobby.white?.connected === false && (
               <span className="badge badge-xs badge-error">disconnected</span>
             )}
@@ -513,40 +529,18 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
           {getPlayerHtml("bottom")}
 
           <>
-            {(lobby.endReason ||
-              (lobby.pgn &&
-                lobby.white &&
-                session?.user?.id === lobby.white?.id &&
-                lobby.black &&
-                !lobby.black?.connected) ||
+            {((lobby.pgn &&
+              lobby.white &&
+              session?.user?.id === lobby.white?.id &&
+              lobby.black &&
+              !lobby.black?.connected) ||
               (lobby.pgn &&
                 lobby.black &&
                 session?.user?.id === lobby.black?.id &&
                 lobby.white &&
                 !lobby.white?.connected)) && (
               <div className="bg-neutral absolute top-0 w-full rounded-t-lg bg-opacity-95 p-2">
-                {lobby.endReason ? (
-                  <div>
-                    {lobby.endReason === "abandoned"
-                      ? lobby.winner === "draw"
-                        ? `The game ended in a draw due to abandonment.`
-                        : `The game was won by ${lobby.winner} due to abandonment.`
-                      : lobby.winner === "draw"
-                        ? "The game ended in a draw."
-                        : `The game was won by checkmate (${lobby.winner}).`}{" "}
-                    <br />
-                    You can review the archived game at{" "}
-                    <a
-                      className="link"
-                      href={`/archive/${lobby.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      ches.su/archive/{lobby.id}
-                    </a>
-                    .
-                  </div>
-                ) : abandonSeconds > 0 ? (
+                {abandonSeconds > 0 ? (
                   `Your opponent has disconnected. You can claim the win or draw in ${abandonSeconds} second${
                     abandonSeconds > 1 ? "s" : ""
                   }.`
@@ -573,9 +567,15 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
             )}
           </>
 
-          {lobby.white?.id && lobby.black?.id && (
+          {/* {lobby.white?.id && lobby.black?.id && (
             <div className="absolute inset-x-0 top-0 z-20 mt-1 py-1 text-center text-sm opacity-50">
               Waiting for {activeColor}.. auto abort in 20s
+            </div>
+          )} */}
+
+          {lobby.endReason && (
+            <div className="fixed inset-x-0 top-2 text-center text-3xl opacity-15">
+              {lobby?.endReason}
             </div>
           )}
 

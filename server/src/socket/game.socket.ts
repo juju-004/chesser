@@ -159,6 +159,24 @@ export async function getLatestGame(this: Socket) {
     if (game) this.emit("receivedLatestGame", game);
 }
 
+interface GameOverProps {
+    reason: string;
+    winnerSide: string;
+    winnerName: string;
+}
+
+const gameOver = async (game: Game, { reason, winnerName, winnerSide }: GameOverProps) => {
+    const { id } = await GameService.save(game);
+    game.id = id;
+
+    if (game.timer.interval) {
+        clearInterval(game.timer.interval);
+    }
+
+    io.to(game.code).emit("gameOver", { reason, winnerName, winnerSide, id });
+    activeGames.splice(activeGames.indexOf(game), 1);
+};
+
 export async function sendMove(this: Socket, m: { from: string; to: string; promotion?: string }) {
     const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
     if (!game || game.endReason || game.winner) return;
@@ -222,16 +240,7 @@ export async function sendMove(this: Socket, m: { from: string; to: string; prom
                     game.winner = winnerSide;
                     game.endReason = "timeout";
 
-                    io.to(game.code).emit("gameOver", {
-                        reason: "timeout",
-                        winnerName,
-                        winnerSide,
-                        id: game.id
-                    });
-
-                    if (game.timeout) clearTimeout(game.timeout);
-                    activeGames.splice(activeGames.indexOf(game), 1);
-                    return;
+                    gameOver(game, { reason: "timeout", winnerName, winnerSide });
                 }
             }, 1000); // Update every second
         };
@@ -270,11 +279,7 @@ export async function sendMove(this: Socket, m: { from: string; to: string; prom
             game.winner = reason === "checkmate" ? winnerSide : "draw";
             game.endReason = reason;
 
-            const { id } = await GameService.save(game);
-            game.id = id;
-
-            io.to(game.code).emit("gameOver", { reason, winnerName, winnerSide, id });
-            activeGames.splice(activeGames.indexOf(game), 1);
+            gameOver(game, { reason, winnerName, winnerSide });
         }
     } catch (e) {
         console.log("sendMove error: " + e);

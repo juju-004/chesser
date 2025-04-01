@@ -74,6 +74,8 @@ export function initSocket(
                 }
             } else if (reason === "checkmate") {
                 m.message = `${winnerName} (${winnerSide}) has won by checkmate.`;
+            } else if (reason === "timeout") {
+                m.message = `${winnerName} (${winnerSide}) has won by timeout.`;
             } else {
                 let message = "The game has ended in a draw";
                 if (reason === "repetition") {
