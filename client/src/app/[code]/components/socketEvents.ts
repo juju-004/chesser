@@ -4,6 +4,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { Socket } from "socket.io-client";
 
 import { syncPgn, syncSide } from "./utils";
+import { GameTimerStarted } from "./GamePage";
 
 export function initSocket(
     user: User,
@@ -12,6 +13,8 @@ export function initSocket(
     actions: {
         updateLobby: Dispatch<Action>;
         addMessage: Function;
+        setTimer: Function;
+        onReconnect?: Function;
         updateCustomSquares: Dispatch<Partial<CustomSquares>>;
         makeMove: Function;
         setNavFen: Dispatch<SetStateAction<string | null>>;
@@ -26,13 +29,30 @@ export function initSocket(
         actions.addMessage(message);
     });
 
+    socket.on("playerDisconnected", (latestGame: Game) => {
+        actions.updateLobby({ type: "updateLobby", payload: latestGame });
+    });
     socket.on("receivedLatestGame", (latestGame: Game) => {
+        console.log(latestGame);
+        // actions.onReconnect();
         if (latestGame.pgn && latestGame.pgn !== lobby.actualGame.pgn()) {
             syncPgn(latestGame.pgn, lobby, actions);
         }
         actions.updateLobby({ type: "updateLobby", payload: latestGame });
 
+        const timer = {
+            whiteTime: latestGame.timer?.whiteTime,
+            blackTime: latestGame.timer?.blackTime,
+            timerStarted: latestGame.timer?.started,
+            activeColor: latestGame.timer?.activeColor
+        };
+        actions.setTimer(timer);
+
         syncSide(user, latestGame, lobby, actions);
+    });
+
+    socket.on("timeUpdate", (timer: GameTimerStarted) => {
+        actions.setTimer(timer);
     });
 
     socket.on("receivedMove", (m: { from: string; to: string; promotion?: string }) => {

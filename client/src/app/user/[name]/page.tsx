@@ -1,4 +1,3 @@
-import CopyLink from "@/components/user/CopyLink";
 import { fetchProfileData } from "@/lib/user";
 import { notFound } from "next/navigation";
 import Container from "./components/container";

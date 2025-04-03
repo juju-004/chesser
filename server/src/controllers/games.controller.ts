@@ -98,13 +98,13 @@ export const createGame = asyncHandler(async (req: Request, res: Response) => {
         pgn: "",
         stake: amount,
         timeControl,
+        status: "started",
         timer: {
             whiteTime: timeControl * 60 * 1000, // Convert minutes to ms
             blackTime: timeControl * 60 * 1000,
             lastUpdate: Date.now(),
             activeColor: "white",
-            started: false,
-            interval: null
+            started: false
         }
     };
 

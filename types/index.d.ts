@@ -4,7 +4,6 @@ export interface GameTimer {
     lastUpdate: number; // timestamp
     activeColor: "white" | "black";
     started: boolean;
-    interval?: NodeJS.Timeout;
 }
 
 export interface Game {
@@ -12,6 +11,7 @@ export interface Game {
     pgn?: string;
     white?: User;
     black?: User;
+    status?: "started" | "inPlay" | "ended";
     winner?: "white" | "black" | "draw";
     endReason?:
         | "draw"
@@ -20,7 +20,8 @@ export interface Game {
         | "repetition"
         | "insufficient"
         | "abandoned"
-        | "timeout";
+        | "timeout"
+        | "aborted";
     host?: User;
     code?: string;
     unlisted?: boolean;

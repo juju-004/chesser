@@ -8,6 +8,7 @@ import {
     joinAsPlayer,
     joinLobby,
     leaveLobby,
+    // reconnect,
     sendMove
 } from "./game.socket.js";
 
@@ -28,6 +29,8 @@ const socketConnect = (socket: Socket) => {
 
     socket.on("joinLobby", joinLobby);
     socket.on("leaveLobby", leaveLobby);
+
+    // socket.on("reconnectGame", reconnect);
 
     socket.on("getLatestGame", getLatestGame);
     socket.on("sendMove", sendMove);

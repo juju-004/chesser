@@ -1,10 +1,14 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { createContext, useState, useContext } from "react";
+import type { ReactNode, ReactElement } from "react";
+import React, { createContext, useState, useContext } from "react";
 
 // Define the type for the toast function
-type ToastFunction = (message: string, status?: "success" | "error", time?: number) => void;
+type ToastFunction = (
+  message: string | ReactElement,
+  status?: "success" | "error" | "info",
+  time?: number
+) => void;
 
 // Define the shape of the context value
 type ToastContextValue = {
@@ -20,7 +24,10 @@ type ToastProviderProps = {
 };
 
 export default function ToastProvider({ children }: ToastProviderProps) {
-  const [alert, setAlert] = useState<{ message: string; status: "success" | "error" } | null>(null);
+  const [alert, setAlert] = useState<{
+    message: string | ReactElement;
+    status: "success" | "error" | "info";
+  } | null>(null);
 
   // Define the toast function with proper typing
   const toast: ToastFunction = (message, status = "success", time = 3000) => {
@@ -31,15 +38,24 @@ export default function ToastProvider({ children }: ToastProviderProps) {
     }, time);
   };
 
+  let className = "alert-success";
+  switch (alert?.status) {
+    case "info":
+      className = "alert-info";
+      break;
+    case "error":
+      className = "alert-error";
+      break;
+    default:
+      className = "alert-success";
+      break;
+  }
+
   return (
     <ToastContext.Provider value={{ toast }}>
       {alert && (
         <div className="toast toast-top toast-center z-[9999]">
-          <div
-            className={`alert alert-soft block ${
-              alert.status === "success" ? "alert-success" : "alert-error"
-            }`}
-          >
+          <div className={`alert alert-soft block ${className}`}>
             <span>{alert.message}</span>
           </div>
         </div>

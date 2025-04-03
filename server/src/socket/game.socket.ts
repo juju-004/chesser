@@ -56,46 +56,53 @@ export async function leaveLobby(this: Socket, reason?: DisconnectReason, code?:
         console.log(`leaveLobby: room size is ${this.rooms.size}, aborting...`);
         return;
     }
+
     const game = activeGames.find(
         (g) =>
             g.code === (code || this.rooms.size === 2 ? Array.from(this.rooms)[1] : 0) ||
-            (g.black?.connected && g.black?.id === this.request.session.user.id) ||
-            (g.white?.connected && g.white?.id === this.request.session.user.id) ||
-            g.observers?.find((o) => this.request.session.user.id === o.id)
+            g.black?.id === this.request.session.user.id ||
+            g.white?.id === this.request.session.user.id ||
+            g.observers?.find((o) => o.id === this.request.session.user.id)
     );
 
-    if (game) {
-        const user = game.observers?.find((o) => o.id === this.request.session.user.id);
-        if (user) {
-            game.observers?.splice(game.observers?.indexOf(user), 1);
-        }
-        if (game.black && game.black?.id === this.request.session.user.id) {
-            game.black.connected = false;
-            game.black.disconnectedOn = Date.now();
-        } else if (game.white && game.white?.id === this.request.session.user.id) {
-            game.white.connected = false;
-            game.white.disconnectedOn = Date.now();
-        }
-
-        // count sockets
-        const sockets = await io.in(game.code as string).fetchSockets();
-
-        if (sockets.length <= 0 || (reason === undefined && sockets.length <= 1)) {
-            if (game.timeout) clearTimeout(game.timeout);
-
-            let timeout = 1000 * 60; // 1 minute
-            if (game.pgn) {
-                timeout *= 20; // 20 minutes if game has started
-            }
-            game.timeout = Number(
-                setTimeout(() => {
-                    activeGames.splice(activeGames.indexOf(game), 1);
-                }, timeout)
-            );
-        } else {
-            this.to(game.code as string).emit("receivedLatestGame", game);
-        }
+    if (!game) {
+        await this.leave(code || Array.from(this.rooms)[1]);
+        return;
     }
+
+    // Handle player disconnection
+    const user = game.observers?.find((o) => o.id === this.request.session.user.id);
+    if (user) {
+        game.observers?.splice(game.observers?.indexOf(user), 1);
+    }
+    if (game.black && game.black?.id === this.request.session.user.id) {
+        game.black.connected = false;
+        game.black.disconnectedOn = Date.now();
+    } else if (game.white && game.white?.id === this.request.session.user.id) {
+        game.white.connected = false;
+        game.white.disconnectedOn = Date.now();
+    }
+
+    // Count remaining player sockets (excluding observers)
+    const sockets = await io.in(game.code).fetchSockets();
+    const remainingPlayers = sockets.filter((socket) => {
+        const socketUserId =
+            socket.handshake.auth?.userId || (socket as any).request?.session?.user?.id;
+        return socketUserId === game.white?.id || socketUserId === game.black?.id;
+    }).length;
+
+    if (remainingPlayers <= 1) {
+        const timeout = game.pgn ? 20 * 60 * 1000 : 60 * 1000;
+        game.timeout = Number(
+            setTimeout(() => {
+                activeGames.splice(activeGames.indexOf(game), 1);
+            }, timeout)
+        );
+    }
+
+    // Notify remaining players
+    io.to(game.code).emit("playerDisconnected", game);
+
     await this.leave(code || Array.from(this.rooms)[1]);
 }
 
@@ -159,6 +166,7 @@ export async function getLatestGame(this: Socket) {
     if (game) this.emit("receivedLatestGame", game);
 }
 
+// uuu
 interface GameOverProps {
     reason: string;
     winnerSide: string;
@@ -169,13 +177,58 @@ const gameOver = async (game: Game, { reason, winnerName, winnerSide }: GameOver
     const { id } = await GameService.save(game);
     game.id = id;
 
-    if (game.timer.interval) {
-        clearInterval(game.timer.interval);
+    if (game.timeout) {
+        clearTimeout(game.timeout);
     }
 
     io.to(game.code).emit("gameOver", { reason, winnerName, winnerSide, id });
     activeGames.splice(activeGames.indexOf(game), 1);
 };
+
+function startTimerInterval(code: string) {
+    const gameTimer = setInterval(() => {
+        const game = activeGames.find((g) => g.code === code);
+
+        if (!game) {
+            clearInterval(gameTimer);
+            return;
+        }
+        const now = Date.now();
+        const elapsed = now - game.timer.lastUpdate;
+
+        if (game.endReason) {
+            clearInterval(gameTimer);
+        }
+
+        // Update the active player's time
+        if (game.timer.activeColor === "white") {
+            game.timer.whiteTime = Math.max(0, game.timer.whiteTime - elapsed);
+        } else {
+            game.timer.blackTime = Math.max(0, game.timer.blackTime - elapsed);
+        }
+
+        game.timer.lastUpdate = now;
+
+        // Broadcast update to all clients
+        io.to(game.code).emit("timeUpdate", {
+            whiteTime: game.timer.whiteTime,
+            blackTime: game.timer.blackTime,
+            activeColor: game.timer.activeColor,
+            timerStarted: game.timer.started
+        });
+
+        // Check for timeout
+        if (game.timer.whiteTime <= 0 || game.timer.blackTime <= 0) {
+            const winnerSide = game.timer.whiteTime <= 0 ? "black" : "white";
+            const winnerName = winnerSide === "white" ? game.white?.name : game.black?.name;
+
+            game.winner = winnerSide;
+            game.endReason = "timeout";
+
+            gameOver(game, { reason: "timeout", winnerName, winnerSide });
+        }
+    }, 1000);
+}
 
 export async function sendMove(this: Socket, m: { from: string; to: string; promotion?: string }) {
     const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
@@ -206,50 +259,11 @@ export async function sendMove(this: Socket, m: { from: string; to: string; prom
 
         game.pgn = chess.pgn();
 
-        const startTimerInterval = (game: Game) => {
-            if (game.timer.interval) {
-                clearInterval(game.timer.interval);
-            }
-
-            game.timer.interval = setInterval(() => {
-                const now = Date.now();
-                const elapsed = now - game.timer.lastUpdate;
-
-                // Update the active player's time
-                if (game.timer.activeColor === "white") {
-                    game.timer.whiteTime = Math.max(0, game.timer.whiteTime - elapsed);
-                } else {
-                    game.timer.blackTime = Math.max(0, game.timer.blackTime - elapsed);
-                }
-
-                game.timer.lastUpdate = now;
-
-                // Broadcast update to all clients
-                io.to(game.code).emit("timeUpdate", {
-                    whiteTime: game.timer.whiteTime,
-                    blackTime: game.timer.blackTime,
-                    activeColor: game.timer.activeColor,
-                    timerStarted: game.timer.started
-                });
-
-                // Check for timeout
-                if (game.timer.whiteTime <= 0 || game.timer.blackTime <= 0) {
-                    const winnerSide = game.timer.whiteTime <= 0 ? "black" : "white";
-                    const winnerName = winnerSide === "white" ? game.white?.name : game.black?.name;
-
-                    game.winner = winnerSide;
-                    game.endReason = "timeout";
-
-                    gameOver(game, { reason: "timeout", winnerName, winnerSide });
-                }
-            }, 1000); // Update every second
-        };
-
         // Only start counting time after both players have moved
         if (isSecondMove) {
             game.timer.started = true;
             game.timer.lastUpdate = Date.now(); // Reset the clock start time
-            startTimerInterval(game);
+            startTimerInterval(game.code);
         }
         // Switch active player
         game.timer.activeColor = prevColor === "white" ? "black" : "white";
@@ -291,8 +305,6 @@ export async function joinAsPlayer(this: Socket) {
     const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
     if (!game) return;
     const user = game.observers?.find((o) => o.id === this.request.session.user.id);
-
-    console.log(this.request.session.user.id);
 
     if (!game.white) {
         const sessionUser = {

@@ -1,7 +1,14 @@
 "use client";
 // TODO: restructure, i could use some help with this :>
 
-import { IconChevronLeft, IconChevronRight, IconCrown, IconMenu } from "@tabler/icons-react";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconCrown,
+  IconLayoutSidebarLeftCollapse,
+  IconLogout2,
+  IconMenu
+} from "@tabler/icons-react";
 
 import type { FormEvent } from "react";
 
@@ -26,8 +33,14 @@ import { IconMessage2 } from "@tabler/icons-react";
 import { CopyLinkButton } from "./CopyLink";
 import { ChessTimer } from "./Timer";
 import Chat from "./Chat";
+import { useToast } from "@/context/ToastContext";
+import { IconMath1Divide2 } from "@tabler/icons-react";
+import { IconHome } from "@tabler/icons-react";
+import { IconProgressX } from "@tabler/icons-react";
+import { IconCirclePlus } from "@tabler/icons-react";
+import Link from "next/link";
 
-interface GameTimerStarted {
+export interface GameTimerStarted {
   whiteTime: number; // in milliseconds
   blackTime: number; // in milliseconds
   lastUpdate: number; // timestamp
@@ -70,6 +83,8 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
   const [timerStarted, setTimerStarted] = useState(false);
 
   const [abandonSeconds, setAbandonSeconds] = useState(60);
+  const { toast } = useToast();
+
   useEffect(() => {
     if (
       lobby.side === "s" ||
@@ -119,18 +134,24 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
       updateCustomSquares,
       makeMove,
       setNavFen,
-      setNavIndex
+      setNavIndex,
+      setTimer
     });
 
-    socket.on(
-      "timeUpdate",
-      ({ whiteTime, blackTime, activeColor, timerStarted }: GameTimerStarted) => {
-        setWhiteTime(whiteTime);
-        setBlackTime(blackTime);
-        setActiveColor(activeColor);
-        setTimerStarted(timerStarted);
-      }
-    );
+    // socket.on("disconnect", () => {
+    //   toast(
+    //     <>
+    //       Connecting <span className="loading loading-bars"></span>
+    //     </>,
+    //     "info"
+    //   );
+
+    //   const isOnline = setInterval(() => {
+    //     if (navigator.onLine) {
+    //       clearInterval(isOnline);
+    //     }
+    //   }, 1000);
+    // });
 
     return () => {
       window.removeEventListener("resize", handleResize);
@@ -175,6 +196,20 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
     // }
   }
 
+  function setTimer(timer: GameTimerStarted) {
+    if (
+      Math.abs(whiteTime - timer.whiteTime) > 1000 ||
+      Math.abs(blackTime - timer.blackTime) > 1000
+    ) {
+      setWhiteTime(timer.whiteTime);
+      setBlackTime(timer.blackTime);
+    }
+
+    setWhiteTime(timer.whiteTime);
+    setBlackTime(timer.blackTime);
+    setActiveColor(timer.activeColor);
+    setTimerStarted(timer.timerStarted);
+  }
   // Chat
   function addMessage(message: Message) {
     setChatMessages((prev) => [...prev, message]);
@@ -337,6 +372,7 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
   function clickPlay(e: FormEvent<HTMLButtonElement>) {
     setPlayBtnLoading(true);
     e.preventDefault();
+
     socket.emit("joinAsPlayer");
   }
 
@@ -476,9 +512,9 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
     <div className="drawer drawer-end">
       <input id="my-drawer-4" type="checkbox" className="drawer-toggle" />
       <div className="drawer-content">
-        <div className="ov relative flex min-h-[calc(100vh-70px)] w-full flex-col justify-center gap-6 py-4 lg:gap-10 2xl:gap-16">
+        <div className="relative flex min-h-[calc(100vh-50px)] w-full flex-col justify-center gap-3 py-4 lg:gap-10 2xl:gap-16">
           {getPlayerHtml("top")}
-          <div className="relative h-min">
+          <div className="relative">
             {/* overlay */}
             {(!lobby.white?.id || !lobby.black?.id) && (
               <div className="absolute bottom-0 right-0 top-0 z-10 flex h-full w-full items-center justify-center bg-black/70">
@@ -567,19 +603,13 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
             )}
           </>
 
-          {/* {lobby.white?.id && lobby.black?.id && (
-            <div className="absolute inset-x-0 top-0 z-20 mt-1 py-1 text-center text-sm opacity-50">
-              Waiting for {activeColor}.. auto abort in 20s
-            </div>
-          )} */}
-
           {lobby.endReason && (
             <div className="fixed inset-x-0 top-2 text-center text-3xl opacity-15">
               {lobby?.endReason}
             </div>
           )}
 
-          <div className="dock dock-sm">
+          <div className="dock dock-sm z-30">
             <div className="fx h-auto">
               <div className="dropdown dropdown-top">
                 <div tabIndex={0} role="button" className="m-2">
@@ -587,14 +617,42 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
                 </div>
                 <ul
                   tabIndex={0}
-                  className="dropdown-content menu bg-base-200 rounded-box z-1 w-52 p-2 shadow-sm"
+                  className="dropdown-content menu bg-base-200 rounded-box z-1 w-52 gap-3 p-2 shadow-sm"
                 >
                   <li>
-                    <a>Offer Draw</a>
+                    <Link href={`/user/${session.user.name}`}>
+                      <IconHome className="size-4" />
+                      Home
+                    </Link>
                   </li>
-                  <li>
-                    <a>Resign</a>
-                  </li>
+                  {lobby.status === "inPlay" && (
+                    <li>
+                      <a className="text-white/50">
+                        <IconMath1Divide2 className="size-4" /> Offer Draw
+                      </a>
+                    </li>
+                  )}
+                  {lobby.status === "started" && (
+                    <li>
+                      <a className="text-white/50">
+                        <IconProgressX className="size-4" /> Abort
+                      </a>
+                    </li>
+                  )}
+                  {lobby.status === "ended" && (
+                    <li>
+                      <a className="text-success/80">
+                        <IconCirclePlus className="size-4" /> New game
+                      </a>
+                    </li>
+                  )}
+                  {lobby.status === "inPlay" && (
+                    <li>
+                      <a className="text-error">
+                        <IconLogout2 className="size-4" /> Resign??
+                      </a>
+                    </li>
+                  )}
                 </ul>
               </div>
             </div>
