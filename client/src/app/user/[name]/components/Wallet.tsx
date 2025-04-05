@@ -14,7 +14,7 @@ function Wallet() {
       if (balance === null) {
         const data = await getWallet();
 
-        setBalance(data?.balance);
+        setBalance(data?.wallet);
       }
     };
 

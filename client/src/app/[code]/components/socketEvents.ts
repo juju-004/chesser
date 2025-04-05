@@ -29,12 +29,11 @@ export function initSocket(
         actions.addMessage(message);
     });
 
-    socket.on("playerDisconnected", (latestGame: Game) => {
-        actions.updateLobby({ type: "updateLobby", payload: latestGame });
+    socket.on("updateLobby", (game: Game) => {
+        actions.updateLobby({ type: "updateLobby", payload: game });
     });
+
     socket.on("receivedLatestGame", (latestGame: Game) => {
-        console.log(latestGame);
-        // actions.onReconnect();
         if (latestGame.pgn && latestGame.pgn !== lobby.actualGame.pgn()) {
             syncPgn(latestGame.pgn, lobby, actions);
         }
@@ -96,6 +95,8 @@ export function initSocket(
                 m.message = `${winnerName} (${winnerSide}) has won by checkmate.`;
             } else if (reason === "timeout") {
                 m.message = `${winnerName} (${winnerSide}) has won by timeout.`;
+            } else if (reason === "resigned") {
+                m.message = `${winnerSide === "white" ? "black" : "white"} resigned`;
             } else {
                 let message = "The game has ended in a draw";
                 if (reason === "repetition") {

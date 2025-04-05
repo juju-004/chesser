@@ -87,6 +87,7 @@ export async function leaveLobby(this: Socket, reason?: DisconnectReason, code?:
     const sockets = await io.in(game.code).fetchSockets();
     const remainingPlayers = sockets.filter((socket) => {
         const socketUserId =
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             socket.handshake.auth?.userId || (socket as any).request?.session?.user?.id;
         return socketUserId === game.white?.id || socketUserId === game.black?.id;
     }).length;
@@ -101,10 +102,23 @@ export async function leaveLobby(this: Socket, reason?: DisconnectReason, code?:
     }
 
     // Notify remaining players
-    io.to(game.code).emit("playerDisconnected", game);
+    io.to(game.code).emit("updateLobby", game);
 
     await this.leave(code || Array.from(this.rooms)[1]);
 }
+
+const gameOver = async (game: Game, { reason, winnerName, winnerSide }: GameOverProps) => {
+    const { id } = await GameService.save(game);
+    game.id = id;
+    game.status = "ended";
+
+    if (game.timeout) {
+        clearTimeout(game.timeout);
+    }
+
+    io.to(game.code).emit("gameOver", { reason, winnerName, winnerSide, id });
+    activeGames.splice(activeGames.indexOf(game), 1);
+};
 
 export async function claimAbandoned(this: Socket, type: "win" | "draw") {
     const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
@@ -145,20 +159,11 @@ export async function claimAbandoned(this: Socket, type: "win" | "draw") {
         game.winner = "black";
     }
 
-    const { id } = await GameService.save(game);
-    game.id = id;
-
-    const gameOver = {
+    gameOver(game, {
         reason: game.endReason,
         winnerName: this.request.session.user.name,
-        winnerSide: game.winner === "draw" ? undefined : game.winner,
-        id
-    };
-
-    io.to(game.code as string).emit("gameOver", gameOver);
-
-    if (game.timeout) clearTimeout(game.timeout);
-    activeGames.splice(activeGames.indexOf(game), 1);
+        winnerSide: game.winner === "draw" ? undefined : game.winner
+    });
 }
 
 export async function getLatestGame(this: Socket) {
@@ -166,39 +171,22 @@ export async function getLatestGame(this: Socket) {
     if (game) this.emit("receivedLatestGame", game);
 }
 
-// uuu
 interface GameOverProps {
     reason: string;
     winnerSide: string;
     winnerName: string;
 }
 
-const gameOver = async (game: Game, { reason, winnerName, winnerSide }: GameOverProps) => {
-    const { id } = await GameService.save(game);
-    game.id = id;
-
-    if (game.timeout) {
-        clearTimeout(game.timeout);
-    }
-
-    io.to(game.code).emit("gameOver", { reason, winnerName, winnerSide, id });
-    activeGames.splice(activeGames.indexOf(game), 1);
-};
-
 function startTimerInterval(code: string) {
     const gameTimer = setInterval(() => {
         const game = activeGames.find((g) => g.code === code);
 
-        if (!game) {
+        if (!game || game?.endReason) {
             clearInterval(gameTimer);
             return;
         }
         const now = Date.now();
         const elapsed = now - game.timer.lastUpdate;
-
-        if (game.endReason) {
-            clearInterval(gameTimer);
-        }
 
         // Update the active player's time
         if (game.timer.activeColor === "white") {
@@ -224,6 +212,7 @@ function startTimerInterval(code: string) {
 
             game.winner = winnerSide;
             game.endReason = "timeout";
+            game.status = "ended";
 
             gameOver(game, { reason: "timeout", winnerName, winnerSide });
         }
@@ -261,6 +250,9 @@ export async function sendMove(this: Socket, m: { from: string; to: string; prom
 
         // Only start counting time after both players have moved
         if (isSecondMove) {
+            game.status = "inPlay";
+
+            io.to(game.code).emit("updateLobby", game);
             game.timer.started = true;
             game.timer.lastUpdate = Date.now(); // Reset the clock start time
             startTimerInterval(game.code);
@@ -302,45 +294,116 @@ export async function sendMove(this: Socket, m: { from: string; to: string; prom
 }
 
 export async function joinAsPlayer(this: Socket) {
-    const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
-    if (!game) return;
-    const user = game.observers?.find((o) => o.id === this.request.session.user.id);
+    try {
+        const game = activeGames.find((g) => g.code === Array.from(this.rooms)[1]);
+        if (!game) return;
+        const user = game.observers?.find((o) => o.id === this.request.session.user.id);
 
-    if (!game.white) {
-        const sessionUser = {
-            id: this.request.session.user.id,
-            name: this.request.session.user.name,
-            connected: true
-        };
-        game.white = sessionUser;
-        if (user) game.observers?.splice(game.observers?.indexOf(user), 1);
-        io.to(game.code as string).emit("userJoinedAsPlayer", {
-            name: this.request.session.user.name,
-            side: "white"
-        });
-        game.startedAt = Date.now();
-    } else if (!game.black) {
-        const sessionUser = {
-            id: this.request.session.user.id,
-            name: this.request.session.user.name,
-            connected: true
-        };
-        game.black = sessionUser;
-        if (user) game.observers?.splice(game.observers?.indexOf(user), 1);
-        io.to(game.code as string).emit("userJoinedAsPlayer", {
-            name: this.request.session.user.name,
-            side: "black"
-        });
-        game.startedAt = Date.now();
-    } else {
-        console.log("joinAsPlayer: attempted to join a game with already 2 players");
+        if (!game.white) {
+            const sessionUser = {
+                id: this.request.session.user.id,
+                name: this.request.session.user.name,
+                connected: true
+            };
+            game.white = sessionUser;
+            if (user) game.observers?.splice(game.observers?.indexOf(user), 1);
+            io.to(game.code as string).emit("userJoinedAsPlayer", {
+                name: this.request.session.user.name,
+                side: "white"
+            });
+            game.startedAt = Date.now();
+        } else if (!game.black) {
+            const sessionUser = {
+                id: this.request.session.user.id,
+                name: this.request.session.user.name,
+                connected: true
+            };
+            game.black = sessionUser;
+            if (user) game.observers?.splice(game.observers?.indexOf(user), 1);
+            io.to(game.code as string).emit("userJoinedAsPlayer", {
+                name: this.request.session.user.name,
+                side: "black"
+            });
+            game.startedAt = Date.now();
+        } else {
+            console.log("joinAsPlayer: attempted to join a game with already 2 players");
+        }
+        io.to(game.code as string).emit("receivedLatestGame", game);
+    } catch (error) {
+        console.error(error);
     }
-    io.to(game.code as string).emit("receivedLatestGame", game);
+}
+export async function abortGame(this: Socket, code: string, type?: string) {
+    const game = activeGames.find((g) => g.code === code);
+    if (!game) return;
+
+    if (type === "r") {
+        const winnerSide = this.request.session.user.id === game.black?.id ? "white" : "black";
+        const winnerName = winnerSide ? game[winnerSide]?.name : undefined;
+
+        game.endReason = "resigned";
+        game.status = "ended";
+
+        gameOver(game, { reason: "resigned", winnerName, winnerSide });
+    } else {
+        game.endReason = "aborted";
+        game.status = "ended";
+        activeGames.splice(activeGames.indexOf(game), 1);
+        io.to(game.code).emit("updateLobby", game);
+    }
 }
 
-export async function chat(this: Socket, message: string) {
-    this.to(Array.from(this.rooms)[1]).emit("chat", {
-        author: this.request.session.user,
-        message
-    });
+export async function offerDraw(
+    this: Socket,
+    code: string,
+    side: "black" | "white",
+    accepted?: boolean
+) {
+    const game = activeGames.find((g) => g.code === code);
+    if (!game) return;
+
+    if (accepted) {
+        if (!game[side]?.offersDraw || Date.now() - game[side].offersDraw >= 20000) {
+            return;
+        }
+
+        const winnerSide = undefined;
+        const winnerName = undefined;
+
+        game.winner = "draw";
+        game.endReason = `draw`;
+        game.status = "ended";
+
+        io.to(Array.from(this.rooms)[1]).emit("chat", {
+            author: { name: "server" },
+            message: `${side === "black" ? "white" : "black"} accepts draw`
+        });
+        gameOver(game, { reason: game.endReason, winnerName, winnerSide });
+    } else {
+        if (game[side]?.offersDraw && Date.now() - game[side]?.offersDraw <= 20000) {
+            return;
+        }
+
+        game[side].offersDraw = Date.now();
+
+        io.to(Array.from(this.rooms)[1]).emit("chat", {
+            author: { name: "server" },
+            message: `${side} offers a draw`
+        });
+        this.to(game.code).emit("offerdraw");
+    }
+}
+
+export async function chat(this: Socket, message: string, server?: boolean | undefined) {
+    if (server) {
+        io.to(Array.from(this.rooms)[1]).emit("chat", {
+            author: { name: "server" },
+            message
+        });
+    } else {
+        this.to(Array.from(this.rooms)[1]).emit("chat", {
+            author: this.request.session.user,
+            message
+        });
+    }
 }

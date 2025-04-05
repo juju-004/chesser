@@ -21,6 +21,7 @@ export interface Game {
         | "insufficient"
         | "abandoned"
         | "timeout"
+        | "resigned"
         | "aborted";
     host?: User;
     code?: string;
@@ -31,7 +32,7 @@ export interface Game {
     endedAt?: number;
     timer?: GameTimer;
     timeControl: number; // in minutes
-    stake?: number;
+    stake: number;
 }
 
 export interface User {
@@ -44,7 +45,8 @@ export interface User {
     verified?: boolean;
 
     // mainly for players, not spectators
-    balance?: string;
+    wallet?: string;
     connected?: boolean;
     disconnectedOn?: number;
+    offersDraw?: number;
 }

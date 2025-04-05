@@ -1,19 +1,12 @@
 "use client";
 // TODO: restructure, i could use some help with this :>
 
-import {
-  IconChevronLeft,
-  IconChevronRight,
-  IconCrown,
-  IconLayoutSidebarLeftCollapse,
-  IconLogout2,
-  IconMenu
-} from "@tabler/icons-react";
+import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 
 import type { FormEvent } from "react";
 
 import { SessionContext } from "@/context/session";
-import { useContext, useEffect, useReducer, useRef, useState } from "react";
+import React, { useContext, useEffect, useReducer, useRef, useState } from "react";
 
 import type { Message, Session } from "@/types";
 import type { Game } from "@chessu/types";
@@ -34,11 +27,8 @@ import { CopyLinkButton } from "./CopyLink";
 import { ChessTimer } from "./Timer";
 import Chat from "./Chat";
 import { useToast } from "@/context/ToastContext";
-import { IconMath1Divide2 } from "@tabler/icons-react";
-import { IconHome } from "@tabler/icons-react";
-import { IconProgressX } from "@tabler/icons-react";
-import { IconCirclePlus } from "@tabler/icons-react";
-import Link from "next/link";
+import { getWallet } from "@/lib/user";
+import MenuOptions from "./MenuOptions";
 
 export interface GameTimerStarted {
   whiteTime: number; // in milliseconds
@@ -81,6 +71,8 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
   const [blackTime, setBlackTime] = useState<number>(initialLobby.timeControl * 60 * 1000);
   const [activeColor, setActiveColor] = useState<"white" | "black">("white");
   const [timerStarted, setTimerStarted] = useState(false);
+
+  const [draw, setDraw] = useState<boolean>(false);
 
   const [abandonSeconds, setAbandonSeconds] = useState(60);
   const { toast } = useToast();
@@ -152,6 +144,13 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
     //     }
     //   }, 1000);
     // });
+
+    socket.on("offerdraw", () => {
+      setDraw(true);
+      setTimeout(() => {
+        setDraw(false);
+      }, 7000);
+    });
 
     return () => {
       window.removeEventListener("resize", handleResize);
@@ -369,11 +368,24 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
     });
   }
 
-  function clickPlay(e: FormEvent<HTMLButtonElement>) {
+  async function clickPlay(e: FormEvent<HTMLButtonElement>) {
     setPlayBtnLoading(true);
     e.preventDefault();
 
-    socket.emit("joinAsPlayer");
+    try {
+      const data = await getWallet();
+
+      if (Math.sign(data.wallet - initialLobby.stake) === -1) {
+        toast("Insufficient funds", "error");
+        setPlayBtnLoading(false);
+        return;
+      }
+
+      socket.emit("joinAsPlayer");
+    } catch (error) {
+      toast("Something went wrong", "error");
+      setPlayBtnLoading(false);
+    }
   }
 
   function getPlayerHtml(side: "top" | "bottom") {
@@ -394,12 +406,7 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
           <span className="flex items-center gap-1 text-xs">
             <span className="opacity-65">black</span>
             {lobby?.winner && lobby.winner === "black" && (
-              <>
-                <div className="text-success/50 absolute -top-2 left-1 -z-10 ml-1 -rotate-12">
-                  <IconCrown />
-                </div>
-                <span className="badge badge-xs badge-success text-white">winner</span>
-              </>
+              <span className="badge badge-xs badge-success text-white">winner</span>
             )}
             {lobby.black?.connected === false && (
               <span className="badge badge-xs badge-error">disconnected</span>
@@ -432,12 +439,7 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
           <span className="flex items-center gap-1 text-xs">
             <span className="opacity-65">white</span>
             {lobby?.winner && lobby.winner === "white" && (
-              <>
-                <div className="text-success/50 absolute -top-2 left-1 -z-10 ml-1 -rotate-12">
-                  <IconCrown />
-                </div>
-                <span className="badge badge-xs badge-success text-white">winner</span>
-              </>
+              <span className="badge badge-xs badge-success text-white">winner</span>
             )}
             {lobby.white?.connected === false && (
               <span className="badge badge-xs badge-error">disconnected</span>
@@ -525,15 +527,20 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
                       className={"btn grad1" + (playBtnLoading ? " btn-disabled" : "")}
                       onClick={clickPlay}
                     >
-                      Play as {lobby.white?.id ? "black" : "white"}
+                      Play as {lobby.white?.id ? "black" : "white"}{" "}
+                      {playBtnLoading && (
+                        <span className="loading-spinner loading loading-xs"></span>
+                      )}
                     </button>
                   ) : (
                     <>
-                      <span className="opacity-80">Waiting for opponent.</span>
-                      <CopyLinkButton
-                        className="bg-base-300 text-base-content fx h-8 gap-2 rounded-2xl px-3 font-mono text-xs active:opacity-60 sm:h-5 sm:text-sm"
-                        link={`localhost:3000/${lobby.endReason ? `archive/${lobby.id}` : initialLobby.code}`}
-                      />
+                      <span className="opacity-80">Waiting for opponent...</span>
+                      {!lobby.endReason && (
+                        <CopyLinkButton
+                          className="bg-base-300 text-base-content fx h-8 gap-2 rounded-2xl px-3 font-mono text-xs active:opacity-60 sm:h-5 sm:text-sm"
+                          link={`localhost:3000/${initialLobby.code}`}
+                        />
+                      )}
                     </>
                   )}
                 </div>
@@ -548,11 +555,12 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
               boardOrientation={lobby.side === "b" ? "black" : "white"}
               isDraggablePiece={isDraggablePiece}
               onPieceDragBegin={onPieceDragBegin}
+              animationDuration={1}
               onPieceDragEnd={onPieceDragEnd}
               onPieceDrop={onDrop}
               onSquareClick={onSquareClick}
               onSquareRightClick={onSquareRightClick}
-              arePremovesAllowed={!navFen}
+              arePremovesAllowed={true}
               customSquareStyles={{
                 ...(navIndex === null ? customSquares.lastMove : getNavMoveSquares()),
                 ...(navIndex === null ? customSquares.check : {}),
@@ -575,87 +583,49 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
                 session?.user?.id === lobby.black?.id &&
                 lobby.white &&
                 !lobby.white?.connected)) && (
-              <div className="bg-neutral absolute top-0 w-full rounded-t-lg bg-opacity-95 p-2">
-                {abandonSeconds > 0 ? (
-                  `Your opponent has disconnected. You can claim the win or draw in ${abandonSeconds} second${
-                    abandonSeconds > 1 ? "s" : ""
-                  }.`
-                ) : (
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    <span>Your opponent has disconnected.</span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => claimAbandoned("win")}
-                        className="btn btn-sm btn-primary"
-                      >
-                        Claim win
-                      </button>
-                      <button
-                        onClick={() => claimAbandoned("draw")}
-                        className="btn btn-sm btn-ghost"
-                      >
-                        Draw
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <>
+                <div role="alert" className="alert alert-vertical">
+                  {abandonSeconds > 0 ? (
+                    `Your opponent has disconnected. You can claim the win or draw in ${abandonSeconds} second${
+                      abandonSeconds > 1 ? "s" : ""
+                    }.`
+                  ) : (
+                    <>
+                      <span className="pt-3">Your opponent has disconnected.</span>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => claimAbandoned("win")}
+                          className="btn btn-sm btn-success btn-soft"
+                        >
+                          Claim win
+                        </button>
+                        <button onClick={() => claimAbandoned("draw")} className="btn btn-sm">
+                          Draw
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
             )}
           </>
 
           {lobby.endReason && (
             <div className="fixed inset-x-0 top-2 text-center text-3xl opacity-15">
-              {lobby?.endReason}
+              {lobby?.endReason === "resigned" || lobby?.endReason === "timeout"
+                ? `${lobby.winner === "white" ? "black" : "white"} ${lobby?.endReason}`
+                : lobby?.endReason}
             </div>
           )}
 
           <div className="dock dock-sm z-30">
-            <div className="fx h-auto">
-              <div className="dropdown dropdown-top">
-                <div tabIndex={0} role="button" className="m-2">
-                  <IconMenu />
-                </div>
-                <ul
-                  tabIndex={0}
-                  className="dropdown-content menu bg-base-200 rounded-box z-1 w-52 gap-3 p-2 shadow-sm"
-                >
-                  <li>
-                    <Link href={`/user/${session.user.name}`}>
-                      <IconHome className="size-4" />
-                      Home
-                    </Link>
-                  </li>
-                  {lobby.status === "inPlay" && (
-                    <li>
-                      <a className="text-white/50">
-                        <IconMath1Divide2 className="size-4" /> Offer Draw
-                      </a>
-                    </li>
-                  )}
-                  {lobby.status === "started" && (
-                    <li>
-                      <a className="text-white/50">
-                        <IconProgressX className="size-4" /> Abort
-                      </a>
-                    </li>
-                  )}
-                  {lobby.status === "ended" && (
-                    <li>
-                      <a className="text-success/80">
-                        <IconCirclePlus className="size-4" /> New game
-                      </a>
-                    </li>
-                  )}
-                  {lobby.status === "inPlay" && (
-                    <li>
-                      <a className="text-error">
-                        <IconLogout2 className="size-4" /> Resign??
-                      </a>
-                    </li>
-                  )}
-                </ul>
-              </div>
-            </div>
+            <MenuOptions
+              lobby={lobby}
+              draw={draw}
+              session={session}
+              socket={socket}
+              setDraw={(v: boolean) => setDraw(v)}
+            />
 
             <button
               className={
@@ -673,7 +643,6 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
             >
               <IconChevronRight size={18} />
             </button>
-
             <button>
               <label htmlFor="my-drawer-4" className="drawer-button">
                 <IconMessage2 />

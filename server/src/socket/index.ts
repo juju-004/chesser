@@ -8,8 +8,9 @@ import {
     joinAsPlayer,
     joinLobby,
     leaveLobby,
-    // reconnect,
-    sendMove
+    abortGame,
+    sendMove,
+    offerDraw
 } from "./game.socket.js";
 
 const socketConnect = (socket: Socket) => {
@@ -30,13 +31,13 @@ const socketConnect = (socket: Socket) => {
     socket.on("joinLobby", joinLobby);
     socket.on("leaveLobby", leaveLobby);
 
-    // socket.on("reconnectGame", reconnect);
-
     socket.on("getLatestGame", getLatestGame);
     socket.on("sendMove", sendMove);
     socket.on("joinAsPlayer", joinAsPlayer);
     socket.on("chat", chat);
     socket.on("claimAbandoned", claimAbandoned);
+    socket.on("abort", abortGame);
+    socket.on("drawoffer", offerDraw);
 };
 
 export const init = () => {

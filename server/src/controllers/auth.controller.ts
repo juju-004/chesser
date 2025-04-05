@@ -389,7 +389,7 @@ export const getWallet = async (req: Request, res: Response) => {
             return;
         }
 
-        res.status(200).json({ balance: users[0].wallet });
+        res.status(200).json({ wallet: users[0].wallet });
     } catch (err: unknown) {
         console.log(err);
         res.status(500).end();
