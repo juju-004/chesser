@@ -28,7 +28,8 @@ import { ChessTimer } from "./Timer";
 import Chat from "./Chat";
 import { useToast } from "@/context/ToastContext";
 import { getWallet } from "@/lib/user";
-import MenuOptions from "./MenuOptions";
+import MenuOptions, { MenuAlert } from "./MenuOptions";
+import MenuDrawer from "./MenuDrawer";
 
 export interface GameTimerStarted {
   whiteTime: number; // in milliseconds
@@ -71,6 +72,7 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
   const [blackTime, setBlackTime] = useState<number>(initialLobby.timeControl * 60 * 1000);
   const [activeColor, setActiveColor] = useState<"white" | "black">("white");
   const [timerStarted, setTimerStarted] = useState(false);
+  const [chatMessagesCount, setchatMessagesCount] = useState<number | null>(null);
 
   const [draw, setDraw] = useState<boolean>(false);
 
@@ -212,6 +214,12 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
   // Chat
   function addMessage(message: Message) {
     setChatMessages((prev) => [...prev, message]);
+
+    if (chatMessagesCount) {
+      setchatMessagesCount((prev) => prev && prev++);
+    } else {
+      setchatMessagesCount(1);
+    }
   }
 
   function makeMove(m: { from: string; to: string; promotion?: string }) {
@@ -511,153 +519,168 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
   }
 
   return (
-    <div className="drawer drawer-end">
-      <input id="my-drawer-4" type="checkbox" className="drawer-toggle" />
-      <div className="drawer-content">
-        <div className="relative flex min-h-[calc(100vh-50px)] w-full flex-col justify-center gap-3 py-4 lg:gap-10 2xl:gap-16">
-          {getPlayerHtml("top")}
-          <div className="relative">
-            {/* overlay */}
-            {(!lobby.white?.id || !lobby.black?.id) && (
-              <div className="absolute bottom-0 right-0 top-0 z-10 flex h-full w-full items-center justify-center bg-black/70">
-                <div className="bg-base-200 flex w-full flex-col items-center justify-center gap-2 px-2 py-4">
-                  {session?.user?.id !== lobby.white?.id &&
-                  session?.user?.id !== lobby.black?.id ? (
-                    <button
-                      className={"btn grad1" + (playBtnLoading ? " btn-disabled" : "")}
-                      onClick={clickPlay}
-                    >
-                      Play as {lobby.white?.id ? "black" : "white"}{" "}
-                      {playBtnLoading && (
-                        <span className="loading-spinner loading loading-xs"></span>
-                      )}
-                    </button>
-                  ) : (
-                    <>
-                      <span className="opacity-80">Waiting for opponent...</span>
-                      {!lobby.endReason && (
-                        <CopyLinkButton
-                          className="bg-base-300 text-base-content fx h-8 gap-2 rounded-2xl px-3 font-mono text-xs active:opacity-60 sm:h-5 sm:text-sm"
-                          link={`localhost:3000/${initialLobby.code}`}
-                        />
-                      )}
-                    </>
-                  )}
+    <MenuDrawer>
+      <div className="drawer drawer-end">
+        <input id="my-drawer-4" type="checkbox" className="drawer-toggle" />
+        <div className="drawer-content">
+          <div className="relative flex min-h-[calc(100vh-50px)] w-full flex-col justify-center gap-3 py-4 lg:gap-10 2xl:gap-16">
+            {getPlayerHtml("top")}
+            <div className="relative">
+              {/* overlay */}
+              {(!lobby.white?.id || !lobby.black?.id) && (
+                <div className="absolute bottom-0 right-0 top-0 z-10 flex h-full w-full items-center justify-center bg-black/70">
+                  <div className="bg-base-200 flex w-full flex-col items-center justify-center gap-2 px-2 py-4">
+                    {session?.user?.id !== lobby.white?.id &&
+                    session?.user?.id !== lobby.black?.id ? (
+                      <button
+                        className={"btn grad1" + (playBtnLoading ? " btn-disabled" : "")}
+                        onClick={clickPlay}
+                      >
+                        Play as {lobby.white?.id ? "black" : "white"}{" "}
+                        {playBtnLoading && (
+                          <span className="loading-spinner loading loading-xs"></span>
+                        )}
+                      </button>
+                    ) : (
+                      <>
+                        <span className="opacity-80">Waiting for opponent...</span>
+                        {!lobby.endReason && (
+                          <CopyLinkButton
+                            className="bg-base-300 text-base-content fx h-8 gap-2 rounded-2xl px-3 font-mono text-xs active:opacity-60 sm:h-5 sm:text-sm"
+                            link={`localhost:3000/${initialLobby.code}`}
+                          />
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <Chessboard
-              boardWidth={boardWidth}
-              customDarkSquareStyle={{ backgroundColor: "#4b7399" }}
-              customLightSquareStyle={{ backgroundColor: "#eae9d2" }}
-              position={navFen || lobby.actualGame.fen()}
-              boardOrientation={lobby.side === "b" ? "black" : "white"}
-              isDraggablePiece={isDraggablePiece}
-              onPieceDragBegin={onPieceDragBegin}
-              animationDuration={1}
-              onPieceDragEnd={onPieceDragEnd}
-              onPieceDrop={onDrop}
-              onSquareClick={onSquareClick}
-              onSquareRightClick={onSquareRightClick}
-              arePremovesAllowed={true}
-              customSquareStyles={{
-                ...(navIndex === null ? customSquares.lastMove : getNavMoveSquares()),
-                ...(navIndex === null ? customSquares.check : {}),
-                ...customSquares.rightClicked,
-                ...(navIndex === null ? customSquares.options : {})
-              }}
-              ref={chessboardRef}
-            />
-          </div>
-          {getPlayerHtml("bottom")}
-
-          <>
-            {((lobby.pgn &&
-              lobby.white &&
-              session?.user?.id === lobby.white?.id &&
-              lobby.black &&
-              !lobby.black?.connected) ||
-              (lobby.pgn &&
-                lobby.black &&
-                session?.user?.id === lobby.black?.id &&
-                lobby.white &&
-                !lobby.white?.connected)) && (
-              <>
-                <div role="alert" className="alert alert-vertical">
-                  {abandonSeconds > 0 ? (
-                    `Your opponent has disconnected. You can claim the win or draw in ${abandonSeconds} second${
-                      abandonSeconds > 1 ? "s" : ""
-                    }.`
-                  ) : (
-                    <>
-                      <span className="pt-3">Your opponent has disconnected.</span>
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => claimAbandoned("win")}
-                          className="btn btn-sm btn-success btn-soft"
-                        >
-                          Claim win
-                        </button>
-                        <button onClick={() => claimAbandoned("draw")} className="btn btn-sm">
-                          Draw
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-          </>
-
-          {lobby.endReason && (
-            <div className="fixed inset-x-0 top-2 text-center text-3xl opacity-15">
-              {lobby?.endReason === "resigned" || lobby?.endReason === "timeout"
-                ? `${lobby.winner === "white" ? "black" : "white"} ${lobby?.endReason}`
-                : lobby?.endReason}
+              <Chessboard
+                boardWidth={boardWidth}
+                customDarkSquareStyle={{ backgroundColor: "#4b7399" }}
+                customLightSquareStyle={{ backgroundColor: "#eae9d2" }}
+                position={navFen || lobby.actualGame.fen()}
+                boardOrientation={lobby.side === "b" ? "black" : "white"}
+                isDraggablePiece={isDraggablePiece}
+                onPieceDragBegin={onPieceDragBegin}
+                animationDuration={1}
+                onPieceDragEnd={onPieceDragEnd}
+                onPieceDrop={onDrop}
+                onSquareClick={onSquareClick}
+                onSquareRightClick={onSquareRightClick}
+                arePremovesAllowed={true}
+                customSquareStyles={{
+                  ...(navIndex === null ? customSquares.lastMove : getNavMoveSquares()),
+                  ...(navIndex === null ? customSquares.check : {}),
+                  ...customSquares.rightClicked,
+                  ...(navIndex === null ? customSquares.options : {})
+                }}
+                ref={chessboardRef}
+              />
             </div>
-          )}
+            {getPlayerHtml("bottom")}
 
-          <div className="dock dock-sm z-30">
-            <MenuOptions
+            <MenuAlert
               lobby={lobby}
               draw={draw}
-              session={session}
               socket={socket}
               setDraw={(v: boolean) => setDraw(v)}
             />
+            <>
+              {((lobby.pgn &&
+                lobby.white &&
+                session?.user?.id === lobby.white?.id &&
+                lobby.black &&
+                !lobby.black?.connected) ||
+                (lobby.pgn &&
+                  lobby.black &&
+                  session?.user?.id === lobby.black?.id &&
+                  lobby.white &&
+                  !lobby.white?.connected)) && (
+                <>
+                  <div className="fixed inset-x-4 top-3">
+                    <div role="alert" className="alert alert-vertical">
+                      {abandonSeconds > 0 ? (
+                        `Your opponent has disconnected. You can claim the win or draw in ${abandonSeconds} second${
+                          abandonSeconds > 1 ? "s" : ""
+                        }.`
+                      ) : (
+                        <>
+                          <span className="pt-3">Your opponent has disconnected.</span>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => claimAbandoned("win")}
+                              className="btn btn-sm btn-success btn-soft"
+                            >
+                              Claim win
+                            </button>
+                            <button onClick={() => claimAbandoned("draw")} className="btn btn-sm">
+                              Draw
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </>
 
-            <button
-              className={
-                navIndex === 0 || lobby.actualGame.history().length <= 1
-                  ? "btn-disabled disabled:opacity-50"
-                  : ""
-              }
-              onClick={() => navigateMove(navIndex === null ? "prev" : navIndex - 1)}
-            >
-              <IconChevronLeft size={18} />
-            </button>
-            <button
-              className={navIndex === null ? "btn-disabled disabled:opacity-50" : ""}
-              onClick={() => navigateMove(navIndex === null ? null : navIndex + 1)}
-            >
-              <IconChevronRight size={18} />
-            </button>
-            <button>
-              <label htmlFor="my-drawer-4" className="drawer-button">
-                <IconMessage2 />
-              </label>
-            </button>
+            {lobby.endReason && (
+              <div className="fixed inset-x-0 top-2 text-center text-3xl opacity-15">
+                {lobby?.endReason === "resigned" || lobby?.endReason === "timeout"
+                  ? `${lobby.winner === "white" ? "black" : "white"} ${lobby?.endReason}`
+                  : lobby?.endReason}
+              </div>
+            )}
+
+            <div className="dock dock-sm z-30">
+              <MenuOptions lobby={lobby} session={session} socket={socket} />
+
+              <button
+                className={
+                  navIndex === 0 || lobby.actualGame.history().length <= 1
+                    ? "btn-disabled disabled:opacity-50"
+                    : ""
+                }
+                onClick={() => navigateMove(navIndex === null ? "prev" : navIndex - 1)}
+              >
+                <IconChevronLeft size={18} />
+              </button>
+              <button
+                className={navIndex === null ? "btn-disabled disabled:opacity-50" : ""}
+                onClick={() => navigateMove(navIndex === null ? null : navIndex + 1)}
+              >
+                <IconChevronRight size={18} />
+              </button>
+              <button>
+                <div className="indicator">
+                  {chatMessagesCount && (
+                    <span className="indicator-item badge-xs badge badge-info text-white">
+                      {chatMessagesCount}
+                    </span>
+                  )}
+                  <label
+                    onClick={() => setchatMessagesCount(null)}
+                    htmlFor="my-drawer-4"
+                    className="drawer-button"
+                  >
+                    <IconMessage2 />
+                  </label>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
+        <Chat
+          addMessage={addMessage}
+          chatMessages={chatMessages}
+          lobby={lobby}
+          session={session}
+          socket={socket}
+        />
       </div>
-      <Chat
-        addMessage={addMessage}
-        chatMessages={chatMessages}
-        lobby={lobby}
-        session={session}
-        socket={socket}
-      />
-    </div>
+    </MenuDrawer>
   );
 }

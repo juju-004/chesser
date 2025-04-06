@@ -1,3 +1,5 @@
+"use client";
+
 import { useToast } from "@/context/ToastContext";
 import { Lobby, Session } from "@/types";
 import { IconCirclePlus, IconHome } from "@tabler/icons-react";
@@ -11,13 +13,45 @@ import { Socket } from "socket.io-client";
 
 interface Menu {
   lobby: Lobby;
-  session: Session;
+  session?: Session;
   socket: Socket;
-  draw: boolean;
-  setDraw: Function;
+  draw?: boolean;
+  setDraw?: Function;
 }
 
-function MenuOptions({ lobby, session, socket, draw, setDraw }: Menu) {
+export function MenuAlert({ socket, lobby, draw, setDraw }: Menu) {
+  function declineDrawOffer() {
+    const side = lobby.side === "b" ? "black" : "white";
+    socket.emit("chat", `${side} declines draw`, true);
+    setDraw && setDraw(false);
+  }
+
+  function acceptDrawOffer() {
+    const side = lobby.side === "b" ? "black" : "white";
+    socket.emit("drawoffer", lobby.code, side, true);
+    setDraw && setDraw(false);
+  }
+
+  return (
+    <div className="fixed inset-x-0 top-0">
+      {draw && (
+        <div role="alert" className="alert alert-vertical">
+          <span className="pt-3">Your opponent offers a draw</span>
+          <div className="flex gap-3">
+            <button onClick={acceptDrawOffer} className="btn btn-sm btn-success btn-soft">
+              Accept
+            </button>
+            <button className="btn btn-sm" onClick={declineDrawOffer}>
+              Decline
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MenuOptions({ lobby, session, socket }: Menu) {
   const [resign, setResign] = useState("");
   const { toast } = useToast();
 
@@ -25,20 +59,11 @@ function MenuOptions({ lobby, session, socket, draw, setDraw }: Menu) {
     socket.emit("abort", lobby.code, type);
   }
 
-  function sendDrawOffer(accepted?: boolean) {
+  function sendDrawOffer() {
     const side = lobby.side === "b" ? "black" : "white";
-    socket.emit("drawoffer", lobby.code, side, accepted);
-    if (accepted) {
-      setDraw(false);
-    } else {
-      toast("Draw offer sent", "info");
-    }
-  }
+    socket.emit("drawoffer", lobby.code, side, false);
 
-  function declineDrawOffer() {
-    const side = lobby.side === "b" ? "black" : "white";
-    socket.emit("chat", `${side} declines draw`, true);
-    setDraw(false);
+    toast("Draw offer sent", "info");
   }
 
   function resignClick() {
@@ -52,24 +77,6 @@ function MenuOptions({ lobby, session, socket, draw, setDraw }: Menu) {
 
   return (
     <>
-      <div className="fixed inset-x-0 top-0">
-        {draw && (
-          <div role="alert" className="alert alert-vertical">
-            <span className="pt-3">Your opponent offers a draw</span>
-            <div className="flex gap-3">
-              <button
-                onClick={() => sendDrawOffer(true)}
-                className="btn btn-sm btn-success btn-soft"
-              >
-                Accept
-              </button>
-              <button className="btn btn-sm" onClick={declineDrawOffer}>
-                Decline
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
       <div className="fx h-auto">
         <div className="dropdown dropdown-top">
           <div tabIndex={0} role="button" className="m-2">
@@ -80,7 +87,7 @@ function MenuOptions({ lobby, session, socket, draw, setDraw }: Menu) {
             className="dropdown-content menu bg-base-200 rounded-box z-1 w-52 gap-3 p-2 shadow-sm"
           >
             <li>
-              <Link href={`/user/${session.user.name}`}>
+              <Link href={`/user/${session?.user?.name}`}>
                 <IconHome className="size-4" />
                 Home
               </Link>
@@ -95,7 +102,7 @@ function MenuOptions({ lobby, session, socket, draw, setDraw }: Menu) {
             {lobby.status === "inPlay" && !lobby.endReason && (
               <>
                 <li>
-                  <a onClick={() => sendDrawOffer(false)} className="text-white/50">
+                  <a onClick={sendDrawOffer} className="text-white/50">
                     <IconMath1Divide2 className="size-4" /> Offer Draw
                   </a>
                 </li>

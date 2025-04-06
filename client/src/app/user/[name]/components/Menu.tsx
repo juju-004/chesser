@@ -1,4 +1,5 @@
 import { SessionContext } from "@/context/session";
+import { Session } from "@/types";
 import { IconCoin, IconPalette } from "@tabler/icons-react";
 import {
   IconArrowCapsule,
@@ -9,8 +10,8 @@ import {
 } from "@tabler/icons-react";
 import React, { useContext } from "react";
 
-function Menu() {
-  const session = useContext(SessionContext);
+function Menu({ className }: { className?: string }) {
+  const session: Session = useContext(SessionContext);
 
   const items = [
     {
@@ -63,11 +64,13 @@ function Menu() {
   ];
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className={`flex h-screen flex-col ${className}`}>
       <div className="bg-gradient-to-b from-gray-900 to-transparent px-5 pb-1 pt-5">
         <h3 className="ml-3 text-lg">{session?.user?.name}</h3>
         <div className="bg-base-100 mb-4 flex w-full items-center gap-2 rounded-3xl px-2 py-1">
-          <span className="fx bg-base-300 size-5 rounded-full"> {session?.user?.email[0]}</span>
+          <span className="fx bg-base-300 size-5 rounded-full">
+            {session?.user?.email && session?.user?.email[0]}
+          </span>
           <span className="w-[70%] flex-1 overflow-hidden text-ellipsis text-sm text-white/80">
             {session?.user?.email}
           </span>
