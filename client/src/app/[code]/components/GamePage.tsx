@@ -30,6 +30,7 @@ import { useToast } from "@/context/ToastContext";
 import { getWallet } from "@/lib/user";
 import MenuOptions, { MenuAlert } from "./MenuOptions";
 import MenuDrawer from "./MenuDrawer";
+import { useChessSounds } from "./SoundManager";
 
 export interface GameTimerStarted {
   whiteTime: number; // in milliseconds
@@ -73,6 +74,7 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
   const [activeColor, setActiveColor] = useState<"white" | "black">("white");
   const [timerStarted, setTimerStarted] = useState(false);
   const [chatMessagesCount, setchatMessagesCount] = useState<number | null>(null);
+  const { playSound } = useChessSounds();
 
   const [draw, setDraw] = useState<boolean>(false);
 
@@ -129,7 +131,8 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
       makeMove,
       setNavFen,
       setNavIndex,
-      setTimer
+      setTimer,
+      playSound
     });
 
     // socket.on("disconnect", () => {
@@ -222,12 +225,22 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
     }
   }
 
-  function makeMove(m: { from: string; to: string; promotion?: string }) {
+  function makeMove(m: { from: string; to: string; promotion?: string }, opponent?: boolean) {
     try {
       const result = lobby.actualGame.move(m);
 
       if (result) {
+        console.log(result);
+
         setActiveColor(result.color === "w" ? "black" : "white");
+
+        if (result.captured) {
+          playSound("capture");
+        } else if (opponent) {
+          playSound("move", true);
+        } else {
+          playSound("move");
+        }
 
         setNavFen(null);
         setNavIndex(null);
@@ -523,7 +536,7 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
       <div className="drawer drawer-end">
         <input id="my-drawer-4" type="checkbox" className="drawer-toggle" />
         <div className="drawer-content">
-          <div className="relative flex min-h-[calc(100vh-50px)] w-full flex-col justify-center gap-3 py-4 lg:gap-10 2xl:gap-16">
+          <div className="relative mt-9 flex min-h-[calc(100vh-90px)] w-full flex-col justify-center gap-3 py-4 lg:gap-10 2xl:gap-16">
             {getPlayerHtml("top")}
             <div className="relative">
               {/* overlay */}

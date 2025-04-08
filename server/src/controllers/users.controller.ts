@@ -40,32 +40,3 @@ export const getUserProfile = async (req: Request, res: Response) => {
         res.status(500).end();
     }
 };
-export const getWallet = async (req: Request, res: Response) => {
-    try {
-        console.log("fjdjdfhjfjs");
-        // if (!req.session.user) {
-        //     res.status(404).end();
-        //     return;
-        // }
-
-        // dhdh
-
-        // const name = xss(req.session.user?.name); // Sanitize the input to prevent XSS
-
-        // // Fetch user by name and email (name used as both name and email)
-        // const users = await UserModel.find({
-        //     $or: [{ name }, { email: name }]
-        // });
-
-        // if (!users || !users.length) {
-        //     // If no user found, send a 404 status
-        //     res.status(404).end();
-        //     return;
-        // }
-
-        res.status(200).json({ balance: "users[0].wallet" });
-    } catch (err: unknown) {
-        console.log(err);
-        res.status(500).end();
-    }
-};

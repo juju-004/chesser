@@ -1,4 +1,5 @@
 import Menu from "@/app/user/[name]/components/Menu";
+import { IconMenuDeep } from "@tabler/icons-react";
 import React, { ReactNode } from "react";
 
 function MenuDrawer({ children }: { children: ReactNode }) {
@@ -7,26 +8,13 @@ function MenuDrawer({ children }: { children: ReactNode }) {
       <input id="my-drawer-3" type="checkbox" className="drawer-toggle" />
       <div className="drawer-content flex flex-col">
         {/* Navbar */}
-        <div className="">
-          <label
-            htmlFor="my-drawer-3"
-            aria-label="open sidebar"
-            className="btn btn-square btn-ghost"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              className="inline-block h-6 w-6 stroke-current"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M4 6h16M4 12h16M4 18h16"
-              ></path>
-            </svg>
+        <div className="bg-base-300/40 fixed top-0 z-50 flex w-full items-center px-2 py-2">
+          <label htmlFor="my-drawer-3" aria-label="open sidebar" className="">
+            <IconMenuDeep className="size-5" />
           </label>
+          {/* <div cl>
+
+          </div> */}
         </div>
         {/* Page content here */}
         {children}

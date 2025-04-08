@@ -1,5 +1,8 @@
+"use client";
+
 // components/ChessTimer.tsx
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useChessSounds } from "./SoundManager";
 
 interface ChessTimerProps {
   color: "white" | "black";
@@ -18,8 +21,10 @@ export const ChessTimer = ({
 }: ChessTimerProps) => {
   const [time, setTime] = useState(initialTime);
   const [displayTime, setDisplayTime] = useState("5:00");
+  const { playSound } = useChessSounds();
   const animationRef = useRef<number>();
   const lastUpdateRef = useRef(Date.now());
+  const lowtimeSound = useRef(false);
   const lastServerTimeRef = useRef(initialTime);
   const isMountedRef = useRef(true);
 
@@ -64,7 +69,6 @@ export const ChessTimer = ({
     };
   }, [active, timerStarted, updateTimer]);
 
-  // Sync with server updates
   useEffect(() => {
     // Only update if server time differs significantly (>1s)
     if (Math.abs(initialTime - lastServerTimeRef.current) > 1000) {
@@ -73,10 +77,7 @@ export const ChessTimer = ({
       lastUpdateRef.current = Date.now();
       lastServerTimeRef.current = initialTime;
     }
-  }, [initialTime, formatTime]);
 
-  // Initial setup
-  useEffect(() => {
     setDisplayTime(formatTime(initialTime));
     lastServerTimeRef.current = initialTime;
     return () => {
@@ -85,7 +86,16 @@ export const ChessTimer = ({
         cancelAnimationFrame(animationRef.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialTime, formatTime]);
+
+  useEffect(() => {
+    if (time <= lowTimeThreshold && !lowtimeSound.current) {
+      playSound("lowTime");
+      lowtimeSound.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayTime]);
 
   return (
     <div

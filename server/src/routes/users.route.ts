@@ -5,6 +5,4 @@ const router = Router();
 
 router.route("/:name").get(controller.getUserProfile);
 
-router.route("/wallet").get(controller.getWallet);
-
 export default router;

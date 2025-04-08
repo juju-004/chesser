@@ -363,7 +363,8 @@ export async function offerDraw(
     if (!game) return;
 
     if (accepted) {
-        if (!game[side]?.offersDraw || Date.now() - game[side].offersDraw >= 20000) {
+        const opponent = side === "black" ? "white" : "black";
+        if (!game[opponent]?.offersDraw || Date.now() - game[opponent].offersDraw >= 20000) {
             return;
         }
 
@@ -376,7 +377,7 @@ export async function offerDraw(
 
         io.to(Array.from(this.rooms)[1]).emit("chat", {
             author: { name: "server" },
-            message: `${side === "black" ? "white" : "black"} accepts draw`
+            message: `${opponent} accepts draw`
         });
         gameOver(game, { reason: game.endReason, winnerName, winnerSide });
     } else {

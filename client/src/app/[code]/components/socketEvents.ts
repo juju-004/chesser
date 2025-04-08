@@ -19,6 +19,7 @@ export function initSocket(
         makeMove: Function;
         setNavFen: Dispatch<SetStateAction<string | null>>;
         setNavIndex: Dispatch<SetStateAction<number | null>>;
+        playSound: Function;
     }
 ) {
     socket.on("connect", () => {
@@ -55,7 +56,7 @@ export function initSocket(
     });
 
     socket.on("receivedMove", (m: { from: string; to: string; promotion?: string }) => {
-        const success = actions.makeMove(m);
+        const success = actions.makeMove(m, true);
         if (!success) {
             socket.emit("getLatestGame");
         }
@@ -66,6 +67,7 @@ export function initSocket(
             author: { name: "server" },
             message: `${name} is now playing as ${side}.`
         });
+        actions.playSound("notify");
     });
 
     socket.on(
@@ -81,6 +83,7 @@ export function initSocket(
             winnerSide?: "white" | "black" | "draw";
             id: number;
         }) => {
+            actions.playSound("notify");
             const m = {
                 author: { name: "server" }
             } as Message;
