@@ -1,13 +1,7 @@
 import { SessionContext } from "@/context/session";
 import { Session } from "@/types";
-import { IconCoin, IconPalette } from "@tabler/icons-react";
-import {
-  IconArrowCapsule,
-  IconAt,
-  IconCashBanknote,
-  IconHome2,
-  IconUsers
-} from "@tabler/icons-react";
+import { IconCoin, IconPalette, IconPower, IconUser } from "@tabler/icons-react";
+import { IconArrowCapsule, IconAt, IconCashBanknote, IconHome2 } from "@tabler/icons-react";
 import React, { useContext } from "react";
 
 function Menu({ className }: { className?: string }) {
@@ -22,17 +16,22 @@ function Menu({ className }: { className?: string }) {
     {
       text: "Players",
       icon: <IconAt className="size-4" />,
-      color: "bg-green-600"
-    },
-    {
-      text: "Friends",
-      icon: <IconUsers className="size-4" />,
-      color: "bg-cyan-600"
+      color: "bg-cyan-500"
     },
     {
       text: "Theme",
       icon: <IconPalette className="size-4" />,
       color: "bg-red-600"
+    }
+  ];
+  const userItems = [
+    {
+      text: "Profile",
+      icon: <IconUser className="size-4" />
+    },
+    {
+      text: "Logout",
+      icon: <IconPower className="size-4 text-red-600" />
     }
   ];
 
@@ -65,15 +64,33 @@ function Menu({ className }: { className?: string }) {
 
   return (
     <div className={`flex h-screen flex-col ${className}`}>
-      <div className="bg-gradient-to-b from-gray-900 to-transparent px-5 pb-1 pt-5">
-        <h3 className="ml-3 text-lg">{session?.user?.name}</h3>
-        <div className="bg-base-100 mb-4 flex w-full items-center gap-2 rounded-3xl px-2 py-1">
-          <span className="fx bg-base-300 size-5 rounded-full">
-            {session?.user?.email && session?.user?.email[0]}
-          </span>
-          <span className="w-[70%] flex-1 overflow-hidden text-ellipsis text-sm text-white/80">
-            {session?.user?.email}
-          </span>
+      <div tabIndex={0} className="collapse-arrow collapse bg-black/20">
+        <div className="collapse-title rounded-3xl border-0 !p-0 after:opacity-60">
+          <div className="px-5 pb-1 pt-5">
+            <h3 className="ml-3 text-lg">{session?.user?.name}</h3>
+            <div className="bg-base-100 mb-4 flex w-full items-center gap-2 rounded-3xl px-2 py-1">
+              <span className="fx bg-base-300 size-5 rounded-full">
+                {session?.user?.email && session?.user?.email[0]}
+              </span>
+              <span className="w-[70%] flex-1 overflow-hidden text-ellipsis text-sm text-white/80">
+                {session?.user?.email}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="collapse-content py-0 text-sm">
+          <ul className="menu w-full gap-1 px-1">
+            {userItems.map((item, key) => (
+              <li className="" key={key}>
+                <a className="">
+                  <span className={`bg-base-100 size-6 rotate-6 rounded-lg px-1.5 text-white/70`}>
+                    {item.icon}
+                  </span>
+                  <span className="opacity-60">{item.text}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
       <div className="flex-1 overflow-x-hidden overflow-y-scroll">

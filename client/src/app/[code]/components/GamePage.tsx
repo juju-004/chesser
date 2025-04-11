@@ -182,9 +182,9 @@ export default function GamePage({ initialLobby }: { initialLobby: Game }) {
     if (lobby.side === "s" || !lobby.white?.id || !lobby.black?.id) return;
 
     if (!lobby.endReason && lobby.side === lobby.actualGame.turn()) {
-      document.title = "(your turn) chessu";
+      document.title = "(your turn) chesser";
     } else {
-      document.title = "chessu";
+      document.title = "chesser";
     }
   }
 

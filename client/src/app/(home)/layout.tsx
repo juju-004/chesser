@@ -1,12 +1,13 @@
 "use client";
 
 import { SessionContext } from "@/context/session";
+import { Session } from "@/types";
 import { useRouter } from "next/navigation";
 import React, { useContext } from "react";
 import type { ReactNode } from "react";
 
 function Layout({ children }: { children: ReactNode }) {
-  const session = useContext(SessionContext);
+  const session: Session = useContext(SessionContext);
   const { replace } = useRouter();
 
   if (!session?.user) {
@@ -14,7 +15,9 @@ function Layout({ children }: { children: ReactNode }) {
     return;
   }
 
-  return <div>{children}</div>;
+  document.title = `${session.user?.name} | chesser`;
+
+  return <>{children}</>;
 }
 
 export default Layout;

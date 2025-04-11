@@ -1,4 +1,4 @@
-import Menu from "@/app/user/[name]/components/Menu";
+import Menu from "@/app/(home)/components/Menu";
 import { IconMenuDeep } from "@tabler/icons-react";
 import React, { ReactNode } from "react";
 

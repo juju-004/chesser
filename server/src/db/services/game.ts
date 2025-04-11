@@ -95,6 +95,29 @@ export const findById = async (id: string) => {
         return null;
     }
 };
+// export const findByCode = async (id: string) => {
+//     try {
+//          const game = await GameModel
+
+//         if (game) {
+//             return {
+//                 id: game._id.toString(),
+//                 winner: game.winner,
+//                 endReason: game.endReason,
+//                 pgn: game.pgn,
+//                 white: { id: game.whiteId.toString(), name: game.whiteName },
+//                 black: { id: game.blackId.toString(), name: game.blackName },
+//                 startedAt: game.startedAt.getTime(),
+//                 endedAt: game.endedAt ? game.endedAt.getTime() : undefined
+//             };
+//         } else {
+//             return null;
+//         }
+//     } catch (err: unknown) {
+//         console.log(err);
+//         return null;
+//     }
+// };
 
 export const findByUserId = async (id: string, limit = 10) => {
     try {

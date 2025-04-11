@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import Nav from "./Nav";
-import Wallet from "./Wallet";
-import Header from "./Header";
-import Menu from "./Menu";
-import Play from "./Play";
+import Nav from "./components/Nav";
+import Wallet from "./components/Wallet";
+import Header from "./components/Header";
+import Menu from "./components/Menu";
+import Play from "./components/Play";
 
-function Container() {
+export default function HomePage() {
   const state = useRef<Number>(0);
 
   useEffect(() => {
@@ -52,5 +52,3 @@ function Container() {
     </div>
   );
 }
-
-export default Container;
