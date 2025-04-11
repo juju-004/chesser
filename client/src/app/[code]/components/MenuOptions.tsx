@@ -13,7 +13,6 @@ import { Socket } from "socket.io-client";
 
 interface Menu {
   lobby: Lobby;
-  session?: Session;
   socket: Socket;
   draw?: boolean;
   setDraw?: Function;
@@ -51,7 +50,7 @@ export function MenuAlert({ socket, lobby, draw, setDraw }: Menu) {
   );
 }
 
-function MenuOptions({ lobby, session, socket }: Menu) {
+function MenuOptions({ lobby, socket }: Menu) {
   const [resign, setResign] = useState("");
   const { toast } = useToast();
 
@@ -87,7 +86,7 @@ function MenuOptions({ lobby, session, socket }: Menu) {
             className="dropdown-content menu bg-base-200 rounded-box z-1 w-52 gap-3 p-2 shadow-sm"
           >
             <li>
-              <Link href={`/user/${session?.user?.name}`}>
+              <Link href={"/"}>
                 <IconHome className="size-4" />
                 Home
               </Link>

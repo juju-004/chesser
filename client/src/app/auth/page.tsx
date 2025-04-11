@@ -32,7 +32,7 @@ function Login() {
       } else if (user?.id) {
         session?.setUser(user);
 
-        push(`/user/${user.name}`);
+        push("/");
       }
     }, 700);
   };

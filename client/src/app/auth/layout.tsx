@@ -10,7 +10,7 @@ function Layout({ children }: { children: ReactNode }) {
   const { replace } = useRouter();
 
   if (session?.user) {
-    replace(`/user/${session.user.name}`);
+    replace("/");
     return;
   }
 
