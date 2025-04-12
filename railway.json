@@ -1,6 +1,6 @@
 {
-  "buildCommand": "pnpm --filter server build && pnpm --filter server start",
-  "startCommand": "pnpm --filter server start",
-  "installCommand": "cd server && pnpm install --frozen-lockfile",
-  "rootDirectory": "./server"
+  "buildCommand": "cd server && pnpm install && pnpm run build",
+  "startCommand": "cd server && node dist/server.js",
+  "rootDirectory": "./server",
+  "installCommand": "cd server && pnpm install --frozen-lockfile"
 }
