@@ -1,0 +1,5 @@
+{
+  "buildCommand": "pnpm run railway:build",
+  "startCommand": "node dist/server.js",
+  "rootDirectory": "./server"
+}
